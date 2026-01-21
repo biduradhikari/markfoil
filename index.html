@@ -1,0 +1,1283 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Markfoil Generator</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* Form Panel Styles */
+      .form-panel {
+        width: 40%;
+        background-color: #f5f5f5;
+        padding: 20px;
+        overflow-y: auto;
+        border-right: 2px solid #ddd;
+      }
+
+      .form-group {
+        margin-bottom: 15px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #333;
+      }
+
+      input[type="text"],
+      input[type="number"],
+      select,
+      textarea {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+
+      textarea {
+        resize: vertical;
+        min-height: 150px;
+        font-family: monospace;
+      }
+
+      .form-row {
+        display: flex;
+        gap: 10px;
+      }
+
+      .form-row .form-group {
+        flex: 1;
+      }
+
+      .stats-display {
+        background-color: #e8f4fd;
+        border: 1px solid #b3d7ff;
+        border-radius: 4px;
+        padding: 10px;
+        margin: 10px 0;
+        display: flex;
+        justify-content: space-around;
+      }
+
+      .stat-item {
+        text-align: center;
+      }
+
+      .stat-value {
+        font-size: 18px;
+        font-weight: bold;
+        color: #0066cc;
+      }
+
+      .stat-label {
+        font-size: 12px;
+        color: #666;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        padding: 10px 20px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        flex: 1;
+        min-width: 120px;
+      }
+
+      button:hover {
+        background-color: #45a049;
+      }
+
+      button.secondary {
+        background-color: #008cba;
+      }
+
+      button.secondary:hover {
+        background-color: #007399;
+      }
+
+      button.danger {
+        background-color: #f44336;
+      }
+
+      button.danger:hover {
+        background-color: #d32f2f;
+      }
+
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+
+      .toast {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #ffeb3b;
+        color: #333;
+        padding: 12px 24px;
+        border-radius: 4px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        font-size: 1.5rem;
+        display: none;
+      }
+
+      /* Preview Panel Styles */
+      .preview-panel {
+        width: 60%;
+        padding: 5px;
+        overflow-y: auto;
+        background-color: white;
+      }
+
+      @media print {
+        body {
+          display: block;
+        }
+
+        .form-panel {
+          display: none !important;
+        }
+
+        .preview-panel {
+          width: 100% !important;
+          padding: 0 !important;
+          overflow: visible !important;
+          margin: 0 !important;
+        }
+        .preview-content {
+          transform: none !important;
+          box-shadow: none !important;
+          background-color: white !important;
+        }
+
+        .no-print {
+          display: none !important;
+        }
+      }
+
+      /* Preview Content Styles */
+      .preview-content {
+        transform-origin: top left;
+        background-color: white;
+      }
+
+      .page-break {
+        page-break-before: always;
+        margin-top: 20px;
+      }
+
+      /* Error Styles */
+      .error {
+        border-color: #f44336 !important;
+        background-color: #ffebee;
+      }
+
+      .error-message {
+        color: #f44336;
+        font-size: 12px;
+        margin-top: 4px;
+        display: none;
+      }
+
+      .highlight {
+        font-style: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Form Panel -->
+    <div class="form-panel">
+      <h2>Markfoil Generator</h2>
+
+      <form id="markfoil-form">
+        <!-- Form Row 1 -->
+        <div class="form-row">
+          <div class="form-group">
+            <!-- <label for="date">Date:</label> -->
+            <input
+              type="text"
+              id="date"
+              placeholder="Date (e.g. Baisakh 2080)"
+            />
+          </div>
+          <div class="form-group">
+            <!-- <label for="level">Level:</label> -->
+            <input type="text" id="level" placeholder="Level (e.g. Bachelor)" />
+          </div>
+        </div>
+
+        <!-- Form Row 2 -->
+        <div class="form-row">
+          <div class="form-group">
+            <!-- <label for="program">Program:</label> -->
+            <input type="text" id="program" placeholder="Program (e.g. MBBS)" />
+          </div>
+          <div class="form-group">
+            <!-- <label for="year">Year:</label> -->
+            <input type="text" id="year" placeholder="Year (e.g. 1st)" />
+          </div>
+        </div>
+
+        <!-- Form Row 3 -->
+        <div class="form-row">
+          <div class="form-group">
+            <!-- <label for="subject">Subject:</label> -->
+            <input
+              type="text"
+              id="subject"
+              placeholder="Subject (e.g. IBMS-IV Group A Anatomy)"
+            />
+          </div>
+          <div class="form-group">
+            <!-- <label for="paper">Paper:</label> -->
+            <input type="text" id="paper" placeholder="Paper (e.g. IV)" />
+          </div>
+        </div>
+
+        <!-- Form Row 4 -->
+        <div class="form-row">
+          <div class="form-group">
+            <!-- <label for="full_marks">Full Marks:</label> -->
+            <input type="number" id="full_marks" placeholder="Full Marks" />
+            <div class="error-message" id="full_marks_error"></div>
+          </div>
+          <div class="form-group">
+            <!-- <label for="exam_type">Type of Exam:</label> -->
+            <select id="exam_type">
+              <option value="Theory">Theory</option>
+              <option value="Practical">Practical</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Form Row 5 -->
+        <div class="form-row">
+          <div class="form-group" id="name-group">
+            <!-- <label for="name">Name of Examiner:</label> -->
+            <input type="text" id="name" placeholder="Examiner's full name" />
+          </div>
+          <div class="form-group" id="campus-group" style="display: none">
+            <!-- <label for="campus">Campus short name:</label> -->
+            <input
+              type="text"
+              id="campus"
+              placeholder="Campus short name (e.g. IOM)"
+            />
+          </div>
+          <div class="form-group">
+            <label for="num_of_rows" style="display: inline-block; width: 120px"
+              >Rows per page:</label
+            >
+            <input
+              type="number"
+              id="num_of_rows"
+              value="30"
+              min="1"
+              max="50"
+              style="display: inline-block; width: calc(100% - 130px)"
+            />
+          </div>
+        </div>
+
+        <!-- Word Number Type -->
+        <div class="form-group">
+          <label for="checkmark">Word Number Type:</label>
+          <select id="checkmark">
+            <option value="word">17 = Seventeen</option>
+            <option value="digit">17 = One seven</option>
+          </select>
+        </div>
+
+        <!-- Stats Display -->
+        <div class="stats-display">
+          <div class="stat-item">
+            <div class="stat-value" id="passed-count">0</div>
+            <div class="stat-label">Passed</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="failed-count">0</div>
+            <div class="stat-label">Failed</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="total-count">0</div>
+            <div class="stat-label">Total</div>
+          </div>
+        </div>
+
+        <!-- Marks Entry -->
+        <div class="form-group">
+          <label for="marks_data">Enter Marks:</label>
+          <textarea
+            id="marks_data"
+            placeholder="Code number &lt;SPACE &gt; Mark obtained
+Example:
+1 85
+2 92
+3 78.5"
+          ></textarea>
+          <div class="error-message" id="marks_error"></div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="form-group">
+          <small>Instructions:</small>
+          <ul style="font-size: 12px; color: #666; margin-left: 15px">
+            <li>Each line: Code number followed by space and mark</li>
+            <li>Press Enter after each entry</li>
+          </ul>
+        </div>
+
+        <!-- Buttons -->
+        <div class="button-group">
+          <button type="button" id="generate-pdf-btn" class="secondary">
+            Print
+          </button>
+          <!-- <button type="button" id="save-data-btn">Save Data</button> -->
+          <button type="button" id="load-data-btn" class="secondary">
+            Load Saved
+          </button>
+          <button type="button" id="clear-fields-btn" class="danger">
+            Clear All
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast no-print" id="toast"></div>
+
+    <!-- Preview Panel -->
+    <div class="preview-panel">
+      <div id="preview-content" class="preview-content">
+        <!-- Preview will be dynamically inserted here -->
+      </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+      // State management
+      const state = {
+        passed: 0,
+        failed: 0,
+        total: 0,
+        currentCodeNumber: 1,
+        data: {
+          date: "",
+          level: "",
+          program: "",
+          year: "",
+          subject: "",
+          paper: "",
+          full_marks: "",
+          exam_type: "Theory",
+          name: "",
+          campus: "",
+          num_of_rows: "30",
+          checkmark: "word",
+          marks_data: "",
+        },
+      };
+
+      // DOM Elements
+      const formElements = {
+        date: document.getElementById("date"),
+        level: document.getElementById("level"),
+        program: document.getElementById("program"),
+        year: document.getElementById("year"),
+        subject: document.getElementById("subject"),
+        paper: document.getElementById("paper"),
+        full_marks: document.getElementById("full_marks"),
+        exam_type: document.getElementById("exam_type"),
+        name: document.getElementById("name"),
+        campus: document.getElementById("campus"),
+        num_of_rows: document.getElementById("num_of_rows"),
+        checkmark: document.getElementById("checkmark"),
+        marks_data: document.getElementById("marks_data"),
+      };
+
+      const statElements = {
+        passed: document.getElementById("passed-count"),
+        failed: document.getElementById("failed-count"),
+        total: document.getElementById("total-count"),
+      };
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", function () {
+        loadSavedData();
+        setupEventListeners();
+        updatePreview();
+      });
+
+      // Event Listeners
+      function setupEventListeners() {
+        // Form input changes
+        Object.keys(formElements).forEach((key) => {
+          formElements[key].addEventListener("input", function () {
+            state.data[key] = this.value;
+            if (key === "full_marks" || key === "marks_data") {
+              validateInputs();
+            }
+            updatePreview();
+          });
+        });
+
+        // Exam type change
+        formElements.exam_type.addEventListener("change", function () {
+          state.data.exam_type = this.value;
+          toggleExamTypeFields();
+          updatePreview();
+        });
+
+        // Marks data Enter key handler
+        formElements.marks_data.addEventListener("keydown", handleEnterKey);
+
+        // Buttons
+        document
+          .getElementById("generate-pdf-btn")
+          .addEventListener("click", generatePDF);
+        document
+          .getElementById("save-data-btn")
+          .addEventListener("click", saveData);
+        document
+          .getElementById("load-data-btn")
+          .addEventListener("click", loadSavedData);
+        document
+          .getElementById("clear-fields-btn")
+          .addEventListener("click", clearAllFields);
+
+        // Auto-save on form changes
+        setInterval(saveData, 30000);
+      }
+
+      // Helper functions
+      function getCurrentLine(textarea) {
+        const text = textarea.value;
+        const cursorPos = textarea.selectionStart;
+        const textBeforeCursor = text.substring(0, cursorPos);
+        const lines = textBeforeCursor.split("\n");
+        return lines[lines.length - 1];
+      }
+
+      function getCurrentLineIndex(textarea) {
+        const text = textarea.value;
+        const cursorPos = textarea.selectionStart;
+        const textBeforeCursor = text.substring(0, cursorPos);
+        return textBeforeCursor.split("\n").length - 1;
+      }
+
+      function getPositionAfterNewLine(textarea, lineIndex) {
+        const lines = textarea.value.split("\n");
+        let position = 0;
+        for (let i = 0; i < lineIndex; i++) {
+          position += lines[i].length + 1;
+        }
+        if (lineIndex < lines.length) {
+          position += lines[lineIndex].length;
+        }
+        return position;
+      }
+
+      function handleEnterKey(e) {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+
+        const textarea = e.target;
+        const currentLine = getCurrentLine(textarea);
+        const parts = currentLine.trim().split(/[\t ]+/);
+
+        if (parts.length >= 2) {
+          const code = parts[0];
+          const mark = parts[1];
+          const markNum = parseFloat(mark);
+          const isMarkNumeric =
+            !isNaN(markNum) && /^\d*\.?\d+$/.test(mark.trim());
+
+          // Validation
+          if (isMarkNumeric) {
+            const fullMarks = parseFloat(state.data.full_marks);
+            if (markNum > fullMarks) {
+              showToast(`Mark ${mark} exceeds full marks of ${fullMarks}!`);
+              return;
+            }
+          } else if (mark.includes(",")) {
+            showToast(`Use decimal point (.) not comma (,) for marks`);
+            return;
+          } else if (mark.match(/\d/)) {
+            showToast(
+              `Invalid mark format: "${mark}" - enter only numbers or text`,
+            );
+            return;
+          }
+
+          // Get delimiter and calculate next code
+          const delimiterMatch = currentLine.match(/[\t ]+/);
+          const delimiter = delimiterMatch ? delimiterMatch[0] : " ";
+          let nextCode = /^\d+$/.test(code)
+            ? parseInt(code) + 1
+            : state.currentCodeNumber;
+          state.currentCodeNumber = nextCode;
+
+          // Insert new line
+          const lines = textarea.value.split("\n");
+          const currentLineIndex = getCurrentLineIndex(textarea);
+          lines.splice(currentLineIndex + 1, 0, `${nextCode}${delimiter}`);
+          textarea.value = lines.join("\n");
+
+          // Update state
+          state.data.marks_data = textarea.value;
+          validateMarksData();
+          updatePreview();
+
+          // Set cursor position
+          setTimeout(() => {
+            const newCursorPos = getPositionAfterNewLine(
+              textarea,
+              currentLineIndex + 1,
+            );
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
+            textarea.focus();
+          }, 10);
+        } else {
+          // Just add new line with next code
+          const newLine = `\n${state.currentCodeNumber} `;
+          const text = textarea.value;
+          const cursorPos = textarea.selectionStart;
+          textarea.value =
+            text.slice(0, cursorPos) + newLine + text.slice(cursorPos);
+          state.data.marks_data = textarea.value;
+
+          setTimeout(() => {
+            textarea.setSelectionRange(
+              cursorPos + newLine.length,
+              cursorPos + newLine.length,
+            );
+            textarea.focus();
+          }, 10);
+        }
+      }
+
+      // Clear all fields with confirmation
+      function clearAllFields() {
+        if (
+          !confirm(
+            "Are you sure you want to clear all fields? This cannot be undone.",
+          )
+        ) {
+          return;
+        }
+
+        // Reset form fields
+        Object.keys(formElements).forEach((key) => {
+          if (key === "exam_type") {
+            formElements[key].value = "Theory";
+          } else if (key === "checkmark") {
+            formElements[key].value = "word";
+          } else if (key === "num_of_rows") {
+            formElements[key].value = "30";
+          } else {
+            formElements[key].value = "";
+          }
+          state.data[key] = formElements[key].value;
+        });
+
+        // Reset stats
+        resetStats();
+
+        // Reset current code number
+        state.currentCodeNumber = 1;
+
+        // Update UI
+        toggleExamTypeFields();
+        validateMarksData();
+        updatePreview();
+        showToast("All fields cleared!");
+
+        // Clear saved data
+        localStorage.removeItem("markfoilData");
+      }
+
+      // Toggle fields based on exam type
+      function toggleExamTypeFields() {
+        const isTheory = state.data.exam_type === "Theory";
+        document.getElementById("name-group").style.display = isTheory
+          ? "block"
+          : "none";
+        document.getElementById("campus-group").style.display = isTheory
+          ? "none"
+          : "block";
+      }
+
+      // Toast notification
+      function showToast(message, duration = 3000) {
+        const toast = document.getElementById("toast");
+        toast.textContent = message;
+        toast.style.display = "block";
+        setTimeout(() => (toast.style.display = "none"), duration);
+      }
+
+      // Update stats display
+      function updateStats() {
+        statElements.passed.textContent = state.passed;
+        statElements.failed.textContent = state.failed;
+        statElements.total.textContent = state.total;
+      }
+
+      function resetStats() {
+        state.passed = 0;
+        state.failed = 0;
+        state.total = 0;
+        state.currentCodeNumber = 1;
+        updateStats();
+      }
+
+      // Validation functions
+      function validateInputs() {
+        const fullMarks = parseFloat(state.data.full_marks);
+        const isValid = !isNaN(fullMarks) && fullMarks > 0;
+
+        if (!isValid) {
+          formElements.full_marks.classList.add("error");
+          document.getElementById("full_marks_error").textContent =
+            "Please enter a valid number for full marks";
+          document.getElementById("full_marks_error").style.display = "block";
+        } else {
+          formElements.full_marks.classList.remove("error");
+          document.getElementById("full_marks_error").style.display = "none";
+        }
+
+        return isValid;
+      }
+
+      function validateMarksData() {
+        const marksText = state.data.marks_data.trim();
+        if (!marksText) {
+          resetStats();
+          return true;
+        }
+
+        const lines = marksText.split("\n");
+        const fullMarks = parseFloat(state.data.full_marks);
+        const passMarks = fullMarks / 2;
+        let passed = 0,
+          failed = 0,
+          hasError = false;
+        const seenCodes = new Set();
+
+        // Update current code number from last line
+        const lastLine = lines[lines.length - 1];
+        const lastParts = lastLine.trim().split(/[\t ]+/);
+        if (lastParts.length > 0 && /^\d+$/.test(lastParts[0])) {
+          state.currentCodeNumber = parseInt(lastParts[0]) + 1;
+        }
+
+        lines.forEach((line, index) => {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) return;
+
+          const parts = trimmedLine.split(/[\t ]+/);
+          if (parts.length < 2) return;
+
+          const code = parts[0];
+          const markStr = parts[1];
+
+          // Check duplicates
+          if (seenCodes.has(code)) {
+            showToast(`Duplicate code number: ${code}`);
+            hasError = true;
+          }
+          seenCodes.add(code);
+
+          // Validate mark
+          const markNum = parseFloat(markStr);
+          const isMarkNumeric =
+            !isNaN(markNum) && /^\d*\.?\d+$/.test(markStr.trim());
+
+          if (isMarkNumeric) {
+            if (markNum > fullMarks) {
+              showToast(
+                `Code ${code} got ${markStr}, which exceeds full marks of ${fullMarks}!`,
+              );
+              hasError = true;
+            }
+            markNum >= passMarks ? passed++ : failed++;
+          } else if (markStr.includes(",")) {
+            showToast(
+              `Line ${index + 1}: Use decimal point (.) not comma (,) for marks`,
+            );
+            hasError = true;
+          } else if (markStr.match(/\d/)) {
+            showToast(
+              `Line ${index + 1}: Invalid mark format: "${markStr}" - enter only numbers or text`,
+            );
+            hasError = true;
+          }
+        });
+
+        state.passed = passed;
+        state.failed = failed;
+        state.total = passed + failed;
+        updateStats();
+
+        formElements.marks_data.classList.toggle("error", hasError);
+        return !hasError;
+      }
+
+      // Word number conversion
+      function wordnum(number) {
+        const integerPart = Math.floor(number);
+        const decimalPart = number - integerPart;
+        let word = "";
+
+        const ones = [
+          "zero",
+          "one",
+          "two",
+          "three",
+          "four",
+          "five",
+          "six",
+          "seven",
+          "eight",
+          "nine",
+          "ten",
+          "eleven",
+          "twelve",
+          "thirteen",
+          "fourteen",
+          "fifteen",
+          "sixteen",
+          "seventeen",
+          "eighteen",
+          "nineteen",
+        ];
+        const tens = [
+          "",
+          "",
+          "twenty",
+          "thirty",
+          "forty",
+          "fifty",
+          "sixty",
+          "seventy",
+          "eighty",
+          "ninety",
+        ];
+
+        if (integerPart < 20) {
+          word = ones[integerPart];
+        } else if (integerPart < 100) {
+          word = tens[Math.floor(integerPart / 10)];
+          if (integerPart % 10 !== 0) {
+            word += " " + ones[integerPart % 10];
+          }
+        } else {
+          word = "hundred plus";
+        }
+
+        if (decimalPart > 0) word += " & half";
+        return word.trim();
+      }
+
+      function digitnum(number) {
+        const integerPart = Math.floor(number);
+        const decimalPart = number - integerPart;
+        const numStr = integerPart.toString();
+        const digitWords = [
+          "zero",
+          "one",
+          "two",
+          "three",
+          "four",
+          "five",
+          "six",
+          "seven",
+          "eight",
+          "nine",
+        ];
+
+        let word = "";
+        for (let digit of numStr) {
+          word += digitWords[parseInt(digit)] + " ";
+        }
+
+        if (decimalPart > 0) word += "& half";
+        return word.trim();
+      }
+
+      // Update preview
+      function updatePreview() {
+        if (!validateInputs() || !validateMarksData()) return;
+
+        const data = state.data;
+        const fullMarks = parseFloat(data.full_marks);
+        const passMarks = fullMarks / 2;
+        const rowsPerPage = parseInt(data.num_of_rows) || 30;
+        const checkmarkType = data.checkmark;
+        const rowHeightCm = (27 / rowsPerPage).toFixed(3);
+        const examTypeShort = data.exam_type === "Theory" ? "Th." : "Pr.";
+
+        const examinerSignatureText = data.exam_type === "Practical" ? "s" : "";
+        const examinerSignatureText2 =
+          data.exam_type === "Practical"
+            ? "Signature of Examiners"
+            : "Signature of Examiner";
+
+        // Create examiner name or signature HTML
+        let examinerNameOrSignature = "";
+        if (data.exam_type === "Theory") {
+          examinerNameOrSignature = `
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 16px;">${data.name || "Examiner Name"}</span></div>
+            <div class="times" style="border-top: 1px solid black;padding-top: 2px;">&nbsp;&nbsp;&nbsp;&nbsp;<span>Full <span class="bold">NAME</span> of Examiner</span></div>
+        `;
+        } else {
+          examinerNameOrSignature = `
+            <div style="height:0.5cm;"><br></div>
+            <div class="times" style="border-top: 1px solid black;padding-top: 2px;">&nbsp;&nbsp;&nbsp;&nbsp;<span>Full Signature of Examiners</span></div>
+        `;
+        }
+
+        // Generate pages
+        let previewHTML = "";
+        const lines = data.marks_data
+          .trim()
+          .split("\n")
+          .filter((line) => line.trim());
+        const totalPages = Math.ceil(lines.length / rowsPerPage);
+
+        for (let pageNum = 0; pageNum < totalPages; pageNum++) {
+          const startIdx = pageNum * rowsPerPage;
+          const endIdx = Math.min(startIdx + rowsPerPage, lines.length);
+          const pageLines = lines.slice(startIdx, endIdx);
+
+          let leftRows = "",
+            rightRows1 = "",
+            rightRows2 = "";
+          let pagePassed = 0,
+            pageFailed = 0;
+
+          pageLines.forEach((line) => {
+            const parts = line.trim().split(/[\t ]+/);
+            const code = parts[0];
+            const mark = parts[1] || "";
+            const markNum = parseFloat(mark);
+            const isNumber = !isNaN(markNum);
+            const highlightClass =
+              isNumber && markNum < passMarks ? "highlight" : "";
+
+            let wordNumber = "";
+            if (isNumber) {
+              wordNumber =
+                checkmarkType === "word" ? wordnum(markNum) : digitnum(markNum);
+              markNum >= passMarks ? pagePassed++ : pageFailed++;
+            } else {
+              wordNumber = mark;
+            }
+
+            const rowStyle = `height: ${rowHeightCm}cm !important;`;
+
+            leftRows += `
+                <tr class="rows ${highlightClass}" style="${rowStyle}">
+                    <td class="huge codecolumn" style="font-size: 16px; padding: 0 5px;">${code}</td>
+                    <td class="mocolumn" style="font-size: 16px; padding: 0 5px;">${mark}</td>
+                </tr>
+            `;
+
+            const rightRow = `
+                <tr class="rows ${highlightClass}" style="${rowStyle}">
+                    <td class="huge codecolumn" style="font-size: 16px; padding: 0 5px;">${code}</td>
+                    <td class="mocolumn" style="font-size: 16px; padding: 0 5px; text-align: center;">${mark}</td>
+                    <td class="wordnumcolumn" style="font-size: 16px; padding: 0 5px;">${wordNumber.charAt(0).toUpperCase() + wordNumber.slice(1)}</td>
+                </tr>
+            `;
+            rightRows1 += rightRow;
+            rightRows2 += rightRow;
+          });
+
+          const campusOverlayStyle =
+            data.exam_type === "Practical"
+              ? 'style="display: block;"'
+              : 'style="display: none;"';
+
+          previewHTML += `
+            <div class="page-content" style="position: relative;">
+                <div id='campus-overlay' ${campusOverlayStyle}>
+                    ${data.campus || "CAMPUS"}
+                </div>
+                
+                <table class="wholepage" style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+                    <tr>
+                        <td class="col1" style="width: 25%; vertical-align: top; padding: 0 2px;">
+                            <div class="center bold times">Tribhuvan University</div>
+                        </td>
+                        <td class="col23" style="width: 37.5%; vertical-align: top; padding: 0 2px;">
+                            <div class="center bold times">Tribhuvan University</div>
+                        </td>
+                        <td class="col23 center" style="width: 37.5%; vertical-align: top; padding: 0 2px;">
+                            <div class="bold times" style="display: inline-block;">Tribhuvan University</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="col1">
+                            <div class="center bold times">Institute of Medicine</div>
+                        </td>
+                        <td class="col23">
+                            <div class="center bold times">Institute of Medicine</div>
+                        </td>
+                        <td class="col23">
+                            <div class="center bold times">Institute of Medicine</div>
+                        </td>
+                    </tr>
+                    <tr class="mini">
+                        <td class="col1">
+                            <div class="underline bold times">Counterfoil Examination</div>
+                        </td>
+                        <td class="col23">
+                            <div class="underline bold italics times">To be treated as strictly confidential</div>
+                        </td>
+                        <td class="col23">
+                            <div class="underline bold italics times">To be treated as strictly confidential</div>
+                        </td>
+                    </tr>
+                    <tr class="mini">
+                        <td class="col1">
+                            <div>&nbsp;&nbsp;Examination held: ${data.date || ""}</div>
+                        </td>
+                        <td class="col23">
+                            <div>&nbsp;&nbsp;Examination held: ${data.date || ""}</div>
+                        </td>
+                        <td class="col23">
+                            <div>&nbsp;&nbsp;Examination held: ${data.date || ""}</div>
+                        </td>
+                    </tr>
+                    <tr class="mini">
+                        <td class="col1">
+                            <div>&nbsp;&nbsp;Level: ${data.level || ""}</div>
+                        </td>
+                        <td class="col23">
+                            <div>&nbsp;&nbsp;Please follow directions strictly</div>
+                        </td>
+                        <td class="col23">
+                            <div>&nbsp;&nbsp;Please follow directions strictly</div>
+                        </td>
+                    </tr>
+                    <tr class="mini">
+                        <td class="col1">
+                            <div>&nbsp;&nbsp;Program: ${data.program || ""}&nbsp;&nbsp;&nbsp;&nbsp;Year: ${data.year || ""}</div>
+                        </td>
+                        <td class="col23">
+                            <div>&nbsp;&nbsp;Level: ${data.level || ""}&nbsp;&nbsp;&nbsp;&nbsp;Program: ${data.program || ""}</div>
+                        </td>
+                        <td class="col23">
+                            <div>&nbsp;&nbsp;Level: ${data.level || ""}&nbsp;&nbsp;&nbsp;&nbsp;Program: ${data.program || ""}</div>
+                        </td>
+                    </tr>
+                    <tr class="mini">
+                        <td class="col1">
+                            <div>&nbsp;&nbsp;Subject: ${data.subject || ""}</div>
+                        </td>
+                        <td class="col23">
+                            <div>&nbsp;&nbsp;Year: ${data.year || ""}&nbsp;&nbsp;&nbsp;&nbsp; Subject: ${data.subject || ""}</div>
+                        </td>
+                        <td class="col23">
+                            <div>&nbsp;&nbsp;Year: ${data.year || ""}&nbsp;&nbsp;&nbsp;&nbsp; Subject: ${data.subject || ""}</div>
+                        </td>
+                    </tr>
+                    <tr class="mini">
+                        <td class="col1">
+                            <div>&nbsp;&nbsp;Paper: ${data.paper || ""}&nbsp;&nbsp;&nbsp;&nbsp;<span class="bold">${examTypeShort}</span></div>
+                        </td>
+                        <td class="col23">
+                            <div>&nbsp;&nbsp;Paper: ${data.paper || ""}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="bold">${examTypeShort}</span></div>
+                        </td>
+                        <td class="col23">
+                            <div>&nbsp;&nbsp;Paper: ${data.paper || ""}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="bold">${examTypeShort}</span></div>
+                        </td>
+                    </tr>
+                    <tr class="mini">
+                        <td class="col1">
+                            <div>&nbsp;&nbsp;Full Marks: ${data.full_marks || ""}&nbsp;&nbsp;Pass Marks: ${passMarks}</div>
+                        </td>
+                        <td class="col23">
+                            <div>&nbsp;&nbsp;Full Marks: ${data.full_marks || ""}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Pass Marks: ${passMarks}</div>
+                        </td>
+                        <td class="col23">
+                            <div>&nbsp;&nbsp;Full Marks: ${data.full_marks || ""}&nbsp;&nbsp;&nbsp;&nbsp;Pass Marks: ${passMarks}</div>
+                        </td>
+                    </tr>
+                    <tr class="mark-tables" style="vertical-align: top;">
+                        <td class="mt1" style="width: 25%; padding: 0 2px;">
+                            <table class="mark-table1" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
+                                <tr>
+                                    <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 45%;">Code #</th>
+                                    <th class="times huge mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 55%;">Marks Obtained</th>
+                                </tr>
+                                ${leftRows}
+                            </table>
+                        </td>
+                        <td class="mt2" style="width: 37.5%; padding: 0 5px;">
+                            <table class="mark-table2" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
+                                <tr>
+                                    <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Code #</th>
+                                    <th class="times mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Marks</th>
+                                    <th class="times huge wordnumcolumn" style="padding: 2px; text-align: left; border: 1px solid black; font-size: 16px; width: 60%;">Marks in Words</th>
+                                </tr>
+                                ${rightRows1}
+                            </table>
+                        </td>
+                        <td class="mt3" style="width: 37.5%; padding: 0 5px;">
+                            <table class="mark-table3" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
+                                <tr>
+                                    <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Code #</th>
+                                    <th class="times mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Marks</th>
+                                    <th class="times huge wordnumcolumn" style="padding: 2px; text-align: left; border: 1px solid black; font-size: 16px; width: 60%;">Marks in Words</th>
+                                </tr>
+                                ${rightRows2}
+                            </table>
+                        </td>
+                    </tr>
+                    <tr class="after-marks mini">
+                        <td class="col1" style="vertical-align: top;">
+                            <div class="times">Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span></div>
+                            <div style="height:0.3cm;"></div>
+                            <div class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>
+                            <div class="times">Full Signature of Examiner${examinerSignatureText}</div>
+                            <div class="underline">Note:</div>
+                            <div style="margin-left:20px; font-size: 8pt;">a) All corrections must be initialed. This counter-foil must be preserved by the Examiner as the case may be for six months.</div>
+                        </td>
+                        <td class="col23" style="vertical-align: top;">
+                            <div class="times center" >&nbsp;&nbsp;&nbsp;&nbsp;Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span></div>
+                            ${examinerNameOrSignature}
+                            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+                            <div>Full Signature of Scrutiny Board, if any</div>
+                            <div><span class="underline">Note:</span></div>
+                            <div style="margin-left:0.5cm; font-size: 8pt;">The Scrutiny Board shall Scrutinize and verify the marks submitted by the examiner before forwarding the same to the Examination Division.</div>
+                        </td>
+                        <td class="col23" style="vertical-align: top;">
+                            <div class="times center">&nbsp;&nbsp;&nbsp;&nbsp;Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span></div>
+                            <div style="height:0.3cm;"></div>
+                            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+                            <div class="times">&nbsp;&nbsp;&nbsp;&nbsp;Full ${examinerSignatureText2}</div>
+                            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+                            <div>Full Signature of Scrutiny Board, if any</div>
+                            <div><span class="underline">Note:</span></div>
+                            <div style="margin-left:0.5cm; font-size: 8pt;">The Scrutiny Board shall Scrutinize and verify the marks submitted by the examiner before forwarding the same to the Examination Division.</div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        `;
+
+          if (pageNum < totalPages - 1) {
+            previewHTML += '<div class="page-break"></div>';
+          }
+        }
+
+        const css = `
+            <style>
+                @page {
+                    size: A4;
+                    margin: 0.3cm 0.3cm !important;
+                }
+                body {
+                    font-family: Arial, sans-serif;
+                    font-size: 14px;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+                .times {
+                    font-family: "Times New Roman", Times, serif;
+                }
+                .wholepage {
+                    width: 100% !important;
+                    border-collapse: collapse;
+                    table-layout: fixed !important;
+                }
+                .wholepage .mini {
+                    font-size: 12px !important;
+                }
+                .wholepage tr td table tr td,
+                .wholepage tr td table tr th {
+                    border: 1px solid black;
+                    padding: 1px !important;
+                    overflow: hidden !important;
+                    text-overflow: ellipsis !important;
+                    white-space: nowrap !important;
+                }
+                .wholepage .mark-tables td {
+                    text-align: center;
+                }
+                .wholepage .mark-tables td table tr .wordnumcolumn {
+                    text-align: left;
+                    padding-left: 2px;
+                }
+                .wholepage .mark-tables td table tr .mocolumn {
+                    padding-left: 2px;
+                    text-align: center;
+                }
+                .highlight {
+                    font-weight: bold;
+                }
+                .underline {
+                    text-decoration: underline;
+                    text-decoration-color: black;
+                }
+                .bold {
+                    font-weight: bold;
+                }
+                .center {
+                    text-align: center;
+                }
+                .italics {
+                    font-style: italic;
+                }
+                .mark-tables .mt1, .mark-tables .mt2, .mark-tables .mt3 {
+                    padding: 0 2px !important;
+                }
+                .mark-table1, .mark-table2, .mark-table3 {
+                    border: 1px solid black;
+                    border-collapse: collapse;
+                    width: 95% !important;
+                    table-layout: fixed !important;
+                    margin: auto;
+                }
+                .rows td {
+                    padding: 1px !important;
+                    font-size: 16px !important;
+                }
+                #campus-overlay {
+                    position: absolute;
+                    top: 0.3cm;
+                    left: 12.5cm;
+                    z-index: 9999;
+                    border: 1px solid;
+                    padding: 1px;
+                    text-align: center;
+                    font-size: 14px;
+                }
+                
+                /* Print-specific adjustments */
+                @media print {
+                    .page-content {
+                        width: 100% !important;
+                        margin: 0.5cm 0.5cm 0.5cm 0.5cm !important;
+                        transform: none !important;
+                    }
+                    
+                    .wholepage {
+                        width: 98% !important;
+                        table-layout: fixed !important;
+                    }
+                    
+                    .mark-table1, .mark-table2, .mark-table3 {
+                        table-layout: fixed !important;
+                    }
+                    
+                    .rows {
+                        height: ${rowHeightCm}cm !important;
+                    }
+                    
+                    .codecolumn, .mocolumn, .wordnumcolumn {
+                        overflow: hidden !important;
+                        text-overflow: ellipsis !important;
+                    }
+                }
+            </style>
+        `;
+
+        document.getElementById("preview-content").innerHTML =
+          css + previewHTML;
+      }
+
+      // Data persistence
+      function saveData() {
+        try {
+          const dataToSave = {
+            ...state.data,
+            passed: state.passed,
+            failed: state.failed,
+            total: state.total,
+            currentCodeNumber: state.currentCodeNumber,
+            timestamp: new Date().toISOString(),
+          };
+          localStorage.setItem("markfoilData", JSON.stringify(dataToSave));
+          showToast("Data saved successfully!");
+          return true;
+        } catch (error) {
+          showToast("Error saving data: " + error.message);
+          return false;
+        }
+      }
+
+      function loadSavedData() {
+        try {
+          const saved = localStorage.getItem("markfoilData");
+          if (saved) {
+            const data = JSON.parse(saved);
+
+            // Update form fields
+            Object.keys(data).forEach((key) => {
+              if (formElements[key]) {
+                formElements[key].value = data[key];
+                state.data[key] = data[key];
+              }
+            });
+
+            // Update state
+            if (data.passed !== undefined) state.passed = data.passed;
+            if (data.failed !== undefined) state.failed = data.failed;
+            if (data.total !== undefined) state.total = data.total;
+            if (data.currentCodeNumber !== undefined)
+              state.currentCodeNumber = data.currentCodeNumber;
+
+            updateStats();
+            toggleExamTypeFields();
+            validateMarksData();
+            updatePreview();
+            showToast("Data loaded successfully!");
+          } else {
+            showToast("No saved data found");
+          }
+        } catch (error) {
+          showToast("Error loading data: " + error.message);
+        }
+      }
+
+      // Print function
+      function generatePDF() {
+        if (!validateInputs() || !validateMarksData()) {
+          showToast("Please fix errors before generating PDF");
+          return;
+        }
+        setTimeout(() => window.print(), 100);
+      }
+    </script>
+  </body>
+</html>
