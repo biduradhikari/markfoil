@@ -156,6 +156,56 @@
         overflow-y: auto;
         background-color: white;
       }
+      /* INFO MODAL */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+
+      .modal {
+        background: white;
+        /* width: 500px; */
+        max-width: 90%;
+        padding: 15px 20px;
+        border-radius: 6px;
+        font-size: 25px;
+      }
+
+      .modal h3 {
+        margin-top: 0;
+        font-size: 40px;
+      }
+
+      .modal ul {
+        padding-left: 18px;
+      }
+
+      .modal button {
+        margin-top: 10px;
+        padding: 5px 15px;
+        font-size: 23px;
+      }
+
+      .modal-close {
+        float: right;
+        cursor: pointer;
+        font-weight: bold;
+      }
+
+      /* hide modal in print */
+      @media print {
+        .modal-overlay {
+          display: none !important;
+        }
+      }
 
       @media print {
         body {
@@ -352,6 +402,7 @@ Example:
           <ul style="font-size: 12px; color: #666; margin-left: 15px">
             <li>Each line: Code number followed by space and mark</li>
             <li>Press Enter after each entry</li>
+            <li>Press backspace to edit code number if needed</li>
           </ul>
         </div>
 
@@ -778,6 +829,7 @@ Example:
           "eighteen",
           "nineteen",
         ];
+
         const tens = [
           "",
           "",
@@ -798,8 +850,14 @@ Example:
           if (integerPart % 10 !== 0) {
             word += " " + ones[integerPart % 10];
           }
+        } else if (integerPart < 1000) {
+          word = ones[Math.floor(integerPart / 100)] + " hundred";
+          const remainder = integerPart % 100;
+          if (remainder !== 0) {
+            word += " " + wordnum(remainder);
+          }
         } else {
-          word = "hundred plus";
+          word = ""; // out of supported range
         }
 
         if (decimalPart > 0) word += " & half";
@@ -810,6 +868,7 @@ Example:
         const integerPart = Math.floor(number);
         const decimalPart = number - integerPart;
         const numStr = integerPart.toString();
+
         const digitWords = [
           "zero",
           "one",
@@ -825,7 +884,9 @@ Example:
 
         let word = "";
         for (let digit of numStr) {
-          word += digitWords[parseInt(digit)] + " ";
+          if (digitWords[digit] !== undefined) {
+            word += digitWords[digit] + " ";
+          }
         }
 
         if (decimalPart > 0) word += "& half";
@@ -1278,6 +1339,67 @@ Example:
         }
         setTimeout(() => window.print(), 100);
       }
+      function closeModal() {
+        document.getElementById("infoModal").style.display = "none";
+      }
+
+      // show modal on page load
+      window.addEventListener("load", () => {
+        document.getElementById("infoModal").style.display = "flex";
+      });
     </script>
+    <div class="modal-overlay" id="infoModal">
+      <div class="modal">
+        <!-- <span class="modal-close" onclick="closeModal()">✕</span> -->
+        <h3>Disclaimer / instructions</h3>
+        <ul>
+          <li>
+            Data entered on this page never leaves your browser. The security of
+            your computer and browser, however, remains your responsibility.
+          </li>
+          <li>
+            Your data is saved locally in your browser for persistence. Do not
+            use this page on shared or public computers.
+          </li>
+          <li>
+            You are responsible for securely transferring the generated PDF for
+            printing. Printing directly from this computer is strongly
+            recommended.
+          </li>
+          <li>
+            Use of wireless printers is not recommended due to potential data
+            security risks.
+          </li>
+          <li>
+            Carefully recheck the printed document for errors before signing.
+          </li>
+          <li>
+            This software is provided “as is”, without warranty of any kind. The
+            developer is not responsible for data loss, printing errors, or any
+            other issues arising from its use.
+          </li>
+          <li>
+            The source code for this page is open source and available for
+            review at
+            <a
+              href="https://github.com/biduradhikari/markfoil"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              https://github.com/biduradhikari/markfoil </a
+            >. This page may also be saved and used offline.
+          </li>
+          <li>
+            For issues or feedback, please contact
+            <a href="mailto:biduradhikari@gmail.com">biduradhikari@gmail.com</a
+            >.
+          </li>
+        </ul>
+
+        <button onclick="closeModal()">
+          I acknowledge and accept the terms stated above
+        </button>
+      </div>
+    </div>
   </body>
 </html>
