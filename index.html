@@ -262,7 +262,7 @@
       }
 
       .highlight {
-        font-style: bold;
+        font-weight: bold;
       }
 
       @media (max-width: 700px) {
@@ -445,7 +445,7 @@ Example:
           <button type="button" id="generate-pdf-btn" class="secondary">
             Print
           </button>
-          <!-- <button type="button" id="save-data-btn">Save Data</button> -->
+          <button type="button" id="save-data-btn">Save Data</button>
           <button type="button" id="load-data-btn" class="secondary">
             Load Saved
           </button>
@@ -549,9 +549,9 @@ Example:
         document
           .getElementById("generate-pdf-btn")
           .addEventListener("click", generatePDF);
-        document
-          .getElementById("save-data-btn")
-          .addEventListener("click", saveData);
+        // document
+        //   .getElementById("save-data-btn")
+        //   .addEventListener("click", saveData);
         document
           .getElementById("load-data-btn")
           .addEventListener("click", loadSavedData);
@@ -658,26 +658,6 @@ Example:
             `Empty or inconsistent mark entry. Please enter both code number and mark.`,
           );
           return;
-          // Just add new line with next code
-          const newLine = `\n${state.currentCodeNumber} `;
-          const text = textarea.value;
-          const cursorPos = textarea.selectionStart;
-          textarea.value =
-            text.slice(0, cursorPos) + newLine + text.slice(cursorPos);
-          state.data.marks_data = textarea.value;
-
-          // Set cursor position and scroll to it
-          setTimeout(() => {
-            const newCursorPos = getPositionAfterNewLine(
-              textarea,
-              currentLineIndex + 1,
-            );
-            textarea.setSelectionRange(newCursorPos, newCursorPos);
-            textarea.focus();
-
-            // Scroll to cursor position
-            scrollToCursor(textarea);
-          }, 10);
         }
       }
 
