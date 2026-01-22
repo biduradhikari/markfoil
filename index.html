@@ -260,34 +260,74 @@
       .highlight {
         font-style: bold;
       }
-      @media (max-width: 768px) {
-        body {
-          height: auto;
-        }
+/* Hide preview on mobile screens (ONLY for screen, not print) */
+@media screen and (max-width: 768px) {
+  body {
+    height: auto;
+  }
 
-        .container {
-          flex-direction: column;
-        }
+  .form-panel {
+    width: 100%;
+    height: 100vh;
+    overflow: auto;
+    font-size: 14px;
+  }
 
-        .form-panel {
-          width: 100%;
-          height: 100vh;
-          overflow: auto;
-          font-size: 14px;
-        }
+  .preview-panel {
+    display: none !important;
+  }
+  
+  .form-panel::after {
+    content: "Preview is available on larger screens";
+    display: block;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #666;
+    text-align: center;
+  }
+}
 
-        .preview-panel {
-          display: none !important;
-        }
-        .form-container::after {
-          content: "Preview is available on larger screens";
-          display: block;
-          margin-top: 10px;
-          font-size: 12px;
-          color: #666;
-          text-align: center;
-        }
-      }
+/* PRINT styles - should override everything */
+@media print {
+  /* First hide everything */
+  body, html {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    display: block !important;
+  }
+  
+  /* Hide form panel and other non-print elements */
+  .form-panel,
+  .toast,
+  .modal-overlay,
+  .no-print {
+    display: none !important;
+  }
+  
+  /* SHOW preview panel even on mobile during print */
+  .preview-panel {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    margin: 0 !important;
+    padding: 0.5cm !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  .preview-content {
+    transform: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+  
+  /* Rest of your print styles... */
+}
     </style>
   </head>
   <body>
