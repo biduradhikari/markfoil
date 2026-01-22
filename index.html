@@ -205,9 +205,7 @@
         .modal-overlay {
           display: none !important;
         }
-      }
 
-      @media print {
         body {
           display: block;
         }
@@ -259,6 +257,34 @@
 
       .highlight {
         font-style: bold;
+      }
+      @media (max-width: 768px) {
+        body {
+          height: auto;
+        }
+
+        .container {
+          flex-direction: column;
+        }
+
+        .form-container {
+          width: 100%;
+          height: 100vh;
+          overflow: auto;
+          font-size: 14px;
+        }
+
+        .pdf-container {
+          display: none !important;
+        }
+        .form-container::after {
+          content: "Preview is available on larger screens";
+          display: block;
+          margin-top: 10px;
+          font-size: 12px;
+          color: #666;
+          text-align: center;
+        }
       }
     </style>
   </head>
