@@ -265,7 +265,7 @@
         font-style: bold;
       }
 
-      @media (max-width: 600px) {
+      @media (max-width: 700px) {
         body {
           height: auto;
         }
@@ -514,6 +514,7 @@ Example:
         total: document.getElementById("total-count"),
       };
 
+      let norepeat = false;
       // Initialize
       document.addEventListener("DOMContentLoaded", function () {
         loadSavedData();
@@ -640,8 +641,7 @@ Example:
           state.data.marks_data = textarea.value;
           validateMarksData();
           updatePreview();
-
-          // Set cursor position
+          // Set cursor position and scroll to it
           setTimeout(() => {
             const newCursorPos = getPositionAfterNewLine(
               textarea,
@@ -649,8 +649,15 @@ Example:
             );
             textarea.setSelectionRange(newCursorPos, newCursorPos);
             textarea.focus();
+
+            // Scroll to cursor position
+            scrollToCursor(textarea);
           }, 10);
         } else {
+          showToast(
+            `Empty or inconsistent mark entry. Please enter both code number and mark.`,
+          );
+          return;
           // Just add new line with next code
           const newLine = `\n${state.currentCodeNumber} `;
           const text = textarea.value;
@@ -659,12 +666,17 @@ Example:
             text.slice(0, cursorPos) + newLine + text.slice(cursorPos);
           state.data.marks_data = textarea.value;
 
+          // Set cursor position and scroll to it
           setTimeout(() => {
-            textarea.setSelectionRange(
-              cursorPos + newLine.length,
-              cursorPos + newLine.length,
+            const newCursorPos = getPositionAfterNewLine(
+              textarea,
+              currentLineIndex + 1,
             );
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
             textarea.focus();
+
+            // Scroll to cursor position
+            scrollToCursor(textarea);
           }, 10);
         }
       }
@@ -756,6 +768,12 @@ Example:
         } else {
           formElements.full_marks.classList.remove("error");
           document.getElementById("full_marks_error").style.display = "none";
+          if (fullMarks > 100 && !norepeat) {
+            showToast(
+              "Full marks is greater than 100. Consider setting Word Number Type to second choice for better readability.",
+            );
+            norepeat = true;
+          }
         }
 
         return isValid;
@@ -788,7 +806,6 @@ Example:
           if (!trimmedLine) return;
 
           const parts = trimmedLine.split(/[\t ]+/);
-          if (parts.length < 2) return;
 
           const code = parts[0];
           const markStr = parts[1];
@@ -985,7 +1002,7 @@ Example:
             const markNum = parseFloat(mark);
             const isNumber = !isNaN(markNum);
             const highlightClass =
-              isNumber && markNum < passMarks ? "highlight" : "";
+              !isNumber || (isNumber && markNum < passMarks) ? "highlight" : "";
 
             let wordNumber = "";
             if (isNumber) {
