@@ -515,6 +515,1302 @@ Example:
       };
 
       let norepeat = false;
+      let lastAutoFormat = null; // For undo functionality
+      let toastTimeout = null; // To manage toast timeout
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", function () {
+        loadSavedData();
+        setupEventListeners();
+        updatePreview();
+        createUndoButton(); // Create undo button on load
+      });
+
+      // NEW: Create undo button - SIMPLIFIED VERSION
+      function createUndoButton() {
+        // Check if button already exists
+        if (document.getElementById("undo-autoformat-btn")) {
+          return document.getElementById("undo-autoformat-btn");
+        }
+
+        // Get the form group that contains the textarea
+        const textarea = document.getElementById("marks_data");
+        const formGroup = textarea.closest(".form-group");
+
+        // Create the button
+        const undoButton = document.createElement("button");
+        undoButton.type = "button";
+        undoButton.id = "undo-autoformat-btn";
+        undoButton.className = "secondary no-print";
+        undoButton.innerHTML = "↶ Undo Last Auto-Format";
+        undoButton.style.cssText = `
+      margin-top: 8px;
+      font-size: 12px;
+      padding: 6px 12px;
+      display: none;
+      width: 100%;
+      text-align: center;
+    `;
+        undoButton.addEventListener("click", undoLastAutoFormat);
+
+        // Insert after the textarea
+        formGroup.appendChild(undoButton);
+
+        return undoButton;
+      }
+
+      // NEW: Update undo button visibility
+      function updateUndoButton() {
+        const undoButton = document.getElementById("undo-autoformat-btn");
+        if (undoButton) {
+          if (lastAutoFormat) {
+            undoButton.style.display = "block";
+            undoButton.style.opacity = "1";
+          } else {
+            undoButton.style.display = "none";
+          }
+        }
+      }
+
+      // Event Listeners
+      function setupEventListeners() {
+        // Form input changes
+        Object.keys(formElements).forEach((key) => {
+          formElements[key].addEventListener("input", function () {
+            state.data[key] = this.value;
+            if (key === "full_marks" || key === "marks_data") {
+              validateInputs();
+            }
+            updatePreview();
+          });
+        });
+
+        // Exam type change
+        formElements.exam_type.addEventListener("change", function () {
+          state.data.exam_type = this.value;
+          toggleExamTypeFields();
+          updatePreview();
+        });
+
+        // Marks data Enter key handler
+        formElements.marks_data.addEventListener("keydown", handleEnterKey);
+
+        // Buttons
+        document
+          .getElementById("generate-pdf-btn")
+          .addEventListener("click", generatePDF);
+        document
+          .getElementById("save-data-btn")
+          .addEventListener("click", saveData);
+        document
+          .getElementById("load-data-btn")
+          .addEventListener("click", loadSavedData);
+        document
+          .getElementById("clear-fields-btn")
+          .addEventListener("click", clearAllFields);
+      }
+
+      // Helper functions
+      function getCurrentLine(textarea) {
+        const text = textarea.value;
+        const cursorPos = textarea.selectionStart;
+        const textBeforeCursor = text.substring(0, cursorPos);
+        const lines = textBeforeCursor.split("\n");
+        return lines[lines.length - 1];
+      }
+
+      function getCurrentLineIndex(textarea) {
+        const text = textarea.value;
+        const cursorPos = textarea.selectionStart;
+        const textBeforeCursor = text.substring(0, cursorPos);
+        return textBeforeCursor.split("\n").length - 1;
+      }
+
+      function getPositionAfterNewLine(textarea, lineIndex) {
+        const lines = textarea.value.split("\n");
+        let position = 0;
+        for (let i = 0; i < lineIndex; i++) {
+          position += lines[i].length + 1;
+        }
+        if (lineIndex < lines.length) {
+          position += lines[lineIndex].length;
+        }
+        return position;
+      }
+
+      function getLineStartPosition(textarea, lineIndex) {
+        const lines = textarea.value.split("\n");
+        let position = 0;
+        for (let i = 0; i < lineIndex; i++) {
+          position += (lines[i]?.length || 0) + 1; // +1 for newline
+        }
+        return position;
+      }
+
+      function handleEnterKey(e) {
+        if (e.key !== "Enter") {
+          // Handle auto-formatting for non-Enter keys
+          handleMarkAutoFormatting(e);
+          return; // Exit early for non-Enter keys
+        }
+
+        // Clear undo state when Enter is pressed (user accepted the auto-format)
+        // if (lastAutoFormat) {
+        //   lastAutoFormat = null;
+        //   updateUndoButton();
+        // }
+
+        // For Enter key only
+        const textarea = e.target;
+        const currentLine = getCurrentLine(textarea);
+        const parts = currentLine.trim().split(/[\t ]+/);
+
+        if (parts.length >= 2) {
+          e.preventDefault(); // Only prevent default if we have valid data
+
+          const code = parts[0];
+          const mark = parts[1];
+          const markNum = parseFloat(mark);
+          const isMarkNumeric = !isNaN(markNum);
+
+          // Validation
+          if (isMarkNumeric) {
+            const fullMarks = parseFloat(state.data.full_marks);
+            if (markNum > fullMarks) {
+              showToast(`Mark ${mark} exceeds full marks of ${fullMarks}!`);
+              return;
+            }
+          } else if (mark.includes(",")) {
+            showToast(`Use decimal point (.) not comma (,) for marks`);
+            return;
+          }
+          // Allow non-numeric text marks (like "Absent", "NC", etc.)
+
+          // Get delimiter and calculate next code
+          const delimiterMatch = currentLine.match(/[\t ]+/);
+          const delimiter = delimiterMatch ? delimiterMatch[0] : " ";
+          let nextCode = /^\d+$/.test(code)
+            ? parseInt(code) + 1
+            : state.currentCodeNumber;
+          state.currentCodeNumber = nextCode;
+
+          // Insert new line
+          const lines = textarea.value.split("\n");
+          const currentLineIndex = getCurrentLineIndex(textarea);
+          lines.splice(currentLineIndex + 1, 0, `${nextCode}${delimiter}`);
+          textarea.value = lines.join("\n");
+
+          // Update state
+          state.data.marks_data = textarea.value;
+          validateMarksData();
+          updatePreview();
+
+          // Set cursor position and scroll to it
+          setTimeout(() => {
+            const newCursorPos = getPositionAfterNewLine(
+              textarea,
+              currentLineIndex + 1,
+            );
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
+            textarea.focus();
+
+            // Scroll to cursor position
+            scrollToCursor(textarea);
+          }, 10);
+
+          // Check if formatted mark is valid and auto-enter
+          const formattedMarkNum = parseFloat(formattedMark);
+          if (!isNaN(formattedMarkNum) && formattedMarkNum <= fullMarks) {
+            // Auto-Enter after short delay
+            setTimeout(() => {
+              // Create a custom event to distinguish auto-enter from manual Enter
+              const enterEvent = new KeyboardEvent("keydown", {
+                key: "Enter",
+                code: "Enter",
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+                cancelable: true,
+              });
+              // Add a custom property to identify auto-triggered Enter
+              enterEvent.autoTriggered = true;
+              textarea.dispatchEvent(enterEvent);
+            }, 500);
+          }
+        } else {
+          // Empty or inconsistent entry - show error and prevent new line
+          e.preventDefault();
+          showToast(
+            `Empty or inconsistent mark entry. Please enter both code number and mark.`,
+          );
+          return;
+        }
+      }
+
+      function scrollToCursor(textarea) {
+        // Simple scroll to make cursor visible
+        const cursorPos = textarea.selectionStart;
+        const textBeforeCursor = textarea.value.substring(0, cursorPos);
+        const linesBefore = textBeforeCursor.split("\n").length;
+        const lineHeight = 20; // Approximate line height
+        const targetScrollTop = Math.max(0, (linesBefore - 3) * lineHeight);
+
+        setTimeout(() => {
+          textarea.scrollTop = targetScrollTop;
+        }, 10);
+      }
+
+      // NEW: Smart auto-formatting function with undo and smart formatting
+      function handleMarkAutoFormatting(e) {
+        // Only process if it's a number key, decimal point, or backspace
+        if (
+          !/[\d\.]/.test(e.key) &&
+          e.key !== "Backspace" &&
+          e.key !== "Delete"
+        ) {
+          return;
+        }
+
+        // Use setTimeout to check after the key has been processed
+        setTimeout(() => {
+          const textarea = e.target;
+          const currentLine = getCurrentLine(textarea);
+          const currentLineIndex = getCurrentLineIndex(textarea);
+          const parts = currentLine.trim().split(/[\t ]+/);
+
+          // Only auto-format if we have a code and mark
+          if (parts.length >= 2 && parts[0] && /^\d+$/.test(parts[0])) {
+            const code = parts[0];
+            let currentMark = parts[1];
+
+            // Skip if already has decimal or is non-numeric
+            if (currentMark.includes(".") || isNaN(parseFloat(currentMark))) {
+              return;
+            }
+
+            const fullMarks = parseFloat(state.data.full_marks);
+            if (isNaN(fullMarks) || fullMarks <= 0) return;
+
+            const markStr = currentMark;
+            const markLength = markStr.length;
+            let formattedMark = markStr;
+            let shouldFormat = false;
+            let toastMessage = "";
+
+            // SMART AUTO-FORMATTING LOGIC
+            if (markLength >= 2) {
+              // Need at least 2 digits to auto-format
+              const markNum = parseFloat(markStr);
+
+              // First check: if raw number exceeds full marks, try auto-formatting
+              if (markNum > fullMarks) {
+                // Try formatting with last digit as decimal
+                const tryOneDecimal = parseFloat(
+                  `${markStr.substring(0, markLength - 1)}.${markStr.substring(markLength - 1)}`,
+                );
+
+                if (tryOneDecimal <= fullMarks) {
+                  formattedMark = `${markStr.substring(0, markLength - 1)}.${markStr.substring(markLength - 1)}`;
+                  shouldFormat = true;
+                  toastMessage = `Auto-formatted to ${formattedMark} (last digit as decimal)`;
+                }
+                // If one decimal doesn't work, try two decimals (if we have at least 3 digits)
+                else if (markLength >= 3) {
+                  const tryTwoDecimals = parseFloat(
+                    `${markStr.substring(0, markLength - 2)}.${markStr.substring(markLength - 2)}`,
+                  );
+
+                  if (tryTwoDecimals <= fullMarks) {
+                    formattedMark = `${markStr.substring(0, markLength - 2)}.${markStr.substring(markLength - 2)}`;
+                    shouldFormat = true;
+                    toastMessage = `Auto-formatted to ${formattedMark} (last 2 digits as decimal)`;
+                  } else {
+                    // Can't auto-format to valid mark - show error
+                    showToast(
+                      `Mark ${markStr} exceeds full marks of ${fullMarks} even after auto-formatting attempts!`,
+                      4000,
+                    );
+                    return;
+                  }
+                } else {
+                  // Not enough digits to try two decimals
+                  showToast(
+                    `Mark ${markStr} exceeds full marks of ${fullMarks}!`,
+                    4000,
+                  );
+                  return;
+                }
+              }
+              // Second: auto-format based on digit patterns (original logic)
+              else if (fullMarks <= 100) {
+                if (markLength === 3) {
+                  // e.g., 115 -> 11.5
+                  formattedMark = `${markStr.substring(0, 2)}.${markStr.substring(2)}`;
+                  shouldFormat = true;
+                  toastMessage = `Auto-formatted to ${formattedMark}`;
+                } else if (markLength === 4) {
+                  // e.g., 1000 -> 10.00, 1125 -> 11.25
+                  formattedMark = `${markStr.substring(0, 2)}.${markStr.substring(2)}`;
+                  shouldFormat = true;
+
+                  // Check for double decimal case (like 1125 -> 11.25)
+                  if (markStr.substring(2).length === 2) {
+                    toastMessage = `Auto-formatted to ${formattedMark} (2 decimal places)`;
+                  } else {
+                    toastMessage = `Auto-formatted to ${formattedMark}`;
+                  }
+                } else if (
+                  markLength === 5 &&
+                  markStr.substring(3).length === 2
+                ) {
+                  // Special case: 5 digits with last 2 as decimals (e.g., 11225 -> 112.25)
+                  formattedMark = `${markStr.substring(0, 3)}.${markStr.substring(3)}`;
+                  shouldFormat = true;
+                  toastMessage = `Auto-formatted to ${formattedMark} (2 decimal places)`;
+                }
+              } else {
+                // For full marks > 100 (e.g., 200)
+                if (markLength === 3) {
+                  // e.g., 125 -> 12.5
+                  formattedMark = `${markStr.substring(0, 2)}.${markStr.substring(2)}`;
+                  shouldFormat = true;
+                  toastMessage = `Auto-formatted to ${formattedMark}`;
+                } else if (markLength === 4) {
+                  // e.g., 1125 -> 11.25
+                  formattedMark = `${markStr.substring(0, 2)}.${markStr.substring(2)}`;
+                  shouldFormat = true;
+
+                  // Check for double decimal case
+                  if (markStr.substring(2).length === 2) {
+                    toastMessage = `Auto-formatted to ${formattedMark} (2 decimal places)`;
+                  } else {
+                    toastMessage = `Auto-formatted to ${formattedMark}`;
+                  }
+                }
+              }
+            }
+
+            // NEW: Clean up trailing zeros from decimal numbers
+            if (formattedMark.includes(".")) {
+              // Remove trailing zeros and trailing decimal point if all zeros
+              formattedMark = formattedMark.replace(/(\.\d*?[1-9])0+$/, "$1");
+              formattedMark = formattedMark.replace(/\.0+$/, "");
+            }
+
+            if (shouldFormat) {
+              // Save for undo
+              lastAutoFormat = {
+                lineIndex: currentLineIndex,
+                originalMark: currentMark,
+                formattedMark: formattedMark,
+                lineText: currentLine,
+              };
+
+              // Update undo button
+              updateUndoButton();
+
+              // Update the line with formatted mark
+              const lines = textarea.value.split("\n");
+              const delimiter = currentLine.match(/[\t ]+/)?.[0] || " ";
+              lines[currentLineIndex] = `${code}${delimiter}${formattedMark}`;
+              textarea.value = lines.join("\n");
+              state.data.marks_data = textarea.value;
+
+              // Show toast with undo button hint (longer duration)
+              showToast(
+                `${toastMessage}. Click "Undo Last Auto-Format" button to revert.`,
+                5000,
+              );
+
+              // Move cursor to end of the formatted mark
+              setTimeout(() => {
+                const lineStart = getLineStartPosition(
+                  textarea,
+                  currentLineIndex,
+                );
+                const newCursorPos =
+                  lineStart +
+                  code.length +
+                  delimiter.length +
+                  formattedMark.length;
+                textarea.setSelectionRange(newCursorPos, newCursorPos);
+                textarea.focus();
+
+                // Validate and update preview
+                validateMarksData();
+                updatePreview();
+
+                // Check if formatted mark is valid and auto-enter
+                const formattedMarkNum = parseFloat(formattedMark);
+                if (!isNaN(formattedMarkNum) && formattedMarkNum <= fullMarks) {
+                  // Auto-Enter after short delay
+                  setTimeout(() => {
+                    const enterEvent = new KeyboardEvent("keydown", {
+                      key: "Enter",
+                      code: "Enter",
+                      keyCode: 13,
+                      which: 13,
+                      bubbles: true,
+                      cancelable: true,
+                    });
+                    textarea.dispatchEvent(enterEvent);
+                  }, 500);
+                }
+              }, 10);
+            }
+          }
+        }, 10);
+      }
+      function undoLastAutoFormat() {
+        if (!lastAutoFormat) {
+          showToast("Nothing to undo", 2000);
+          return;
+        }
+
+        console.log("Undoing last auto-format:", lastAutoFormat);
+
+        const textarea = formElements.marks_data;
+        const lines = textarea.value.split("\n");
+
+        // Check if the line still has the formatted mark
+        const currentLine = lines[lastAutoFormat.lineIndex];
+        const parts = currentLine.trim().split(/[\t ]+/);
+
+        if (parts.length >= 2 && parts[1] === lastAutoFormat.formattedMark) {
+          const code = parts[0];
+          const delimiter = currentLine.match(/[\t ]+/)?.[0] || " ";
+          lines[lastAutoFormat.lineIndex] =
+            `${code}${delimiter}${lastAutoFormat.originalMark}`;
+          textarea.value = lines.join("\n");
+          state.data.marks_data = textarea.value;
+
+          // Move cursor to end of the original mark
+          setTimeout(() => {
+            const lineStart = getLineStartPosition(
+              textarea,
+              lastAutoFormat.lineIndex,
+            );
+            const newCursorPos =
+              lineStart +
+              code.length +
+              delimiter.length +
+              lastAutoFormat.originalMark.length;
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
+            textarea.focus();
+            showToast("Undo successful. Continue typing...", 3000);
+          }, 10);
+        } else {
+          showToast("Cannot undo - line has been modified", 3000);
+        }
+
+        // Clear undo state
+        lastAutoFormat = null;
+        updateUndoButton();
+      }
+
+      // UPDATED: Toast notification with longer duration
+      function showToast(message, duration = 5000) {
+        const toast = document.getElementById("toast");
+        toast.textContent = message;
+        toast.style.display = "block";
+
+        // Clear previous timeout if exists
+        if (toastTimeout) {
+          clearTimeout(toastTimeout);
+        }
+
+        // Set new timeout
+        toastTimeout = setTimeout(
+          () => (toast.style.display = "none"),
+          duration,
+        );
+      }
+
+      // UPDATED: Save data function (manual save only)
+      function saveData() {
+        try {
+          const dataToSave = {
+            ...state.data,
+            passed: state.passed,
+            failed: state.failed,
+            total: state.total,
+            currentCodeNumber: state.currentCodeNumber,
+            timestamp: new Date().toISOString(),
+          };
+          localStorage.setItem("markfoilData", JSON.stringify(dataToSave));
+          showToast("Data saved successfully!", 3000);
+          return true;
+        } catch (error) {
+          showToast("Error saving data: " + error.message, 4000);
+          return false;
+        }
+      }
+
+      // Clear all fields with confirmation
+      function clearAllFields() {
+        if (
+          !confirm(
+            "Are you sure you want to clear all fields? This cannot be undone.",
+          )
+        ) {
+          return;
+        }
+
+        // Reset form fields
+        Object.keys(formElements).forEach((key) => {
+          if (key === "exam_type") {
+            formElements[key].value = "Theory";
+          } else if (key === "checkmark") {
+            formElements[key].value = "word";
+          } else if (key === "num_of_rows") {
+            formElements[key].value = "30";
+          } else {
+            formElements[key].value = "";
+          }
+          state.data[key] = formElements[key].value;
+        });
+
+        // Clear undo state
+        lastAutoFormat = null;
+        updateUndoButton();
+
+        // Reset stats
+        resetStats();
+
+        // Reset current code number
+        state.currentCodeNumber = 1;
+
+        // Update UI
+        toggleExamTypeFields();
+        validateMarksData();
+        updatePreview();
+        showToast("All fields cleared!", 3000);
+
+        // Clear saved data
+        localStorage.removeItem("markfoilData");
+      }
+
+      // Toggle fields based on exam type
+      function toggleExamTypeFields() {
+        const isTheory = state.data.exam_type === "Theory";
+        document.getElementById("name-group").style.display = isTheory
+          ? "block"
+          : "none";
+        document.getElementById("campus-group").style.display = isTheory
+          ? "none"
+          : "block";
+      }
+
+      // Update stats display
+      function updateStats() {
+        statElements.passed.textContent = state.passed;
+        statElements.failed.textContent = state.failed;
+        statElements.total.textContent = state.total;
+      }
+
+      function resetStats() {
+        state.passed = 0;
+        state.failed = 0;
+        state.total = 0;
+        state.currentCodeNumber = 1;
+        updateStats();
+      }
+
+      // Validation functions
+      function validateInputs() {
+        const fullMarks = parseFloat(state.data.full_marks);
+        const isValid = !isNaN(fullMarks) && fullMarks > 0;
+
+        if (!isValid) {
+          formElements.full_marks.classList.add("error");
+          document.getElementById("full_marks_error").textContent =
+            "Please enter a valid number for full marks";
+          document.getElementById("full_marks_error").style.display = "block";
+        } else {
+          formElements.full_marks.classList.remove("error");
+          document.getElementById("full_marks_error").style.display = "none";
+          if (fullMarks > 100 && !norepeat) {
+            showToast(
+              "Full marks is greater than 100. Consider setting Word Number Type to second choice for better readability.",
+              4000,
+            );
+            norepeat = true;
+          }
+        }
+
+        return isValid;
+      }
+
+      function validateMarksData() {
+        const marksText = state.data.marks_data.trim();
+        if (!marksText) {
+          resetStats();
+          return true;
+        }
+
+        const lines = marksText.split("\n");
+        const fullMarks = parseFloat(state.data.full_marks);
+        const passMarks = fullMarks / 2;
+        let passed = 0,
+          failed = 0,
+          hasError = false;
+        const seenCodes = new Set();
+
+        // Update current code number from last line
+        const lastLine = lines[lines.length - 1];
+        const lastParts = lastLine.trim().split(/[\t ]+/);
+        if (lastParts.length > 0 && /^\d+$/.test(lastParts[0])) {
+          state.currentCodeNumber = parseInt(lastParts[0]) + 1;
+        }
+
+        lines.forEach((line, index) => {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) return;
+
+          const parts = trimmedLine.split(/[\t ]+/);
+
+          // Skip validation if line doesn't have both code and mark
+          if (parts.length < 2) return;
+
+          const code = parts[0];
+          const markStr = parts[1];
+
+          // Check duplicates
+          if (seenCodes.has(code)) {
+            showToast(`Duplicate code number: ${code}`, 4000);
+            hasError = true;
+          }
+          seenCodes.add(code);
+
+          // Validate mark - FIXED: Allow incomplete decimals while typing
+          const markNum = parseFloat(markStr);
+
+          // Check if it's a valid number (including incomplete decimals like "29.")
+          const isMarkNumeric =
+            !isNaN(markNum) && /^\d*\.?\d*$/.test(markStr.trim());
+
+          // Check if it's a completed decimal (has digits after decimal point or no decimal point at all)
+          const isCompleteDecimal =
+            !markStr.endsWith(".") || /^\d+$/.test(markStr);
+
+          if (isMarkNumeric) {
+            if (isCompleteDecimal) {
+              // Only validate against full marks if it's a complete number
+              if (markNum > fullMarks) {
+                showToast(
+                  `Code ${code} got ${markStr}, which exceeds full marks of ${fullMarks}!`,
+                  4000,
+                );
+                hasError = true;
+              }
+              markNum >= passMarks ? passed++ : failed++;
+            }
+            // If it's an incomplete decimal (like "29."), skip validation until user finishes typing
+          } else if (markStr.includes(",")) {
+            showToast(
+              `Line ${index + 1}: Use decimal point (.) not comma (,) for marks`,
+              4000,
+            );
+            hasError = true;
+          } else if (markStr.match(/\d/)) {
+            // Only show error if it's not an incomplete decimal
+            if (!markStr.endsWith(".") && markStr.includes(".")) {
+              showToast(
+                `Line ${index + 1}: Invalid mark format: "${markStr}" - enter only numbers or text`,
+                4000,
+              );
+              hasError = true;
+              return;
+            }
+          }
+        });
+
+        state.passed = passed;
+        state.failed = failed;
+        state.total = passed + failed;
+        updateStats();
+
+        formElements.marks_data.classList.toggle("error", hasError);
+        return !hasError;
+      }
+      // Word number conversion
+      function wordnum(number) {
+        const integerPart = Math.floor(number);
+        const decimalPart = number - integerPart;
+        let word = "";
+
+        const ones = [
+          "zero",
+          "one",
+          "two",
+          "three",
+          "four",
+          "five",
+          "six",
+          "seven",
+          "eight",
+          "nine",
+          "ten",
+          "eleven",
+          "twelve",
+          "thirteen",
+          "fourteen",
+          "fifteen",
+          "sixteen",
+          "seventeen",
+          "eighteen",
+          "nineteen",
+        ];
+
+        const tens = [
+          "",
+          "",
+          "twenty",
+          "thirty",
+          "forty",
+          "fifty",
+          "sixty",
+          "seventy",
+          "eighty",
+          "ninety",
+        ];
+
+        if (integerPart < 20) {
+          word = ones[integerPart];
+        } else if (integerPart < 100) {
+          word = tens[Math.floor(integerPart / 10)];
+          if (integerPart % 10 !== 0) {
+            word += " " + ones[integerPart % 10];
+          }
+        } else if (integerPart < 1000) {
+          word = ones[Math.floor(integerPart / 100)] + " hundred";
+          const remainder = integerPart % 100;
+          if (remainder !== 0) {
+            word += " " + wordnum(remainder);
+          }
+        } else {
+          word = ""; // out of supported range
+        }
+
+        if (decimalPart > 0) word += " & half";
+        return word.trim();
+      }
+
+      function digitnum(number) {
+        const integerPart = Math.floor(number);
+        const decimalPart = number - integerPart;
+        const numStr = integerPart.toString();
+
+        const digitWords = [
+          "zero",
+          "one",
+          "two",
+          "three",
+          "four",
+          "five",
+          "six",
+          "seven",
+          "eight",
+          "nine",
+        ];
+
+        let word = "";
+        for (let digit of numStr) {
+          if (digitWords[digit] !== undefined) {
+            word += digitWords[digit] + " ";
+          }
+        }
+
+        if (decimalPart > 0) word += "& half";
+        return word.trim();
+      }
+
+      // Update preview
+      function updatePreview() {
+        if (!validateInputs() || !validateMarksData()) return;
+
+        const data = state.data;
+        const fullMarks = parseFloat(data.full_marks);
+        const passMarks = fullMarks / 2;
+        const rowsPerPage = parseInt(data.num_of_rows) || 30;
+        const checkmarkType = data.checkmark;
+        const rowHeightCm = (27 / rowsPerPage).toFixed(3);
+        const examTypeShort = data.exam_type === "Theory" ? "Th." : "Pr.";
+
+        const examinerSignatureText = data.exam_type === "Practical" ? "s" : "";
+        const examinerSignatureText2 =
+          data.exam_type === "Practical"
+            ? "Signature of Examiners"
+            : "Signature of Examiner";
+
+        // Create examiner name or signature HTML
+        let examinerNameOrSignature = "";
+        if (data.exam_type === "Theory") {
+          examinerNameOrSignature = `
+        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 16px;">${data.name || "Examiner Name"}</span></div>
+        <div class="times" style="border-top: 1px solid black;padding-top: 2px;">&nbsp;&nbsp;&nbsp;&nbsp;<span>Full <span class="bold">NAME</span> of Examiner</span></div>
+    `;
+        } else {
+          examinerNameOrSignature = `
+        <div style="height:0.5cm;"><br></div>
+        <div class="times" style="border-top: 1px solid black;padding-top: 2px;">&nbsp;&nbsp;&nbsp;&nbsp;<span>Full Signature of Examiners</span></div>
+    `;
+        }
+
+        // Generate pages
+        let previewHTML = "";
+        const lines = data.marks_data
+          .trim()
+          .split("\n")
+          .filter((line) => line.trim());
+        const totalPages = Math.ceil(lines.length / rowsPerPage);
+
+        for (let pageNum = 0; pageNum < totalPages; pageNum++) {
+          const startIdx = pageNum * rowsPerPage;
+          const endIdx = Math.min(startIdx + rowsPerPage, lines.length);
+          const pageLines = lines.slice(startIdx, endIdx);
+
+          let leftRows = "",
+            rightRows1 = "",
+            rightRows2 = "";
+          let pagePassed = 0,
+            pageFailed = 0;
+
+          pageLines.forEach((line) => {
+            const parts = line.trim().split(/[\t ]+/);
+            const code = parts[0];
+            const mark = parts[1] || "";
+            const markNum = parseFloat(mark);
+            const isNumber = !isNaN(markNum);
+            const highlightClass =
+              !isNumber || (isNumber && markNum < passMarks) ? "highlight" : "";
+
+            let wordNumber = "";
+            if (isNumber) {
+              wordNumber =
+                checkmarkType === "word" ? wordnum(markNum) : digitnum(markNum);
+              markNum >= passMarks ? pagePassed++ : pageFailed++;
+            } else {
+              wordNumber = mark;
+            }
+
+            const rowStyle = `height: ${rowHeightCm}cm !important;`;
+
+            leftRows += `
+            <tr class="rows ${highlightClass}" style="${rowStyle}">
+                <td class="huge codecolumn" style="font-size: 16px; padding: 0 5px;">${code}</td>
+                <td class="mocolumn" style="font-size: 16px; padding: 0 5px;">${mark}</td>
+            </tr>
+        `;
+
+            const rightRow = `
+            <tr class="rows ${highlightClass}" style="${rowStyle}">
+                <td class="huge codecolumn" style="font-size: 16px; padding: 0 5px;">${code}</td>
+                <td class="mocolumn" style="font-size: 16px; padding: 0 5px; text-align: center;">${mark}</td>
+                <td class="wordnumcolumn" style="font-size: 16px; padding: 0 5px;">${wordNumber.charAt(0).toUpperCase() + wordNumber.slice(1)}</td>
+            </tr>
+        `;
+            rightRows1 += rightRow;
+            rightRows2 += rightRow;
+          });
+
+          const campusOverlayStyle =
+            data.exam_type === "Practical"
+              ? 'style="display: block;"'
+              : 'style="display: none;"';
+
+          previewHTML += `
+        <div class="page-content" style="position: relative;">
+            <div id='campus-overlay' ${campusOverlayStyle}>
+                ${data.campus || "CAMPUS"}
+            </div>
+            
+            <table class="wholepage" style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+                <tr>
+                    <td class="col1" style="width: 25%; vertical-align: top; padding: 0 2px;">
+                        <div class="center bold times">Tribhuvan University</div>
+                    </td>
+                    <td class="col23" style="width: 37.5%; vertical-align: top; padding: 0 2px;">
+                        <div class="center bold times">Tribhuvan University</div>
+                    </td>
+                    <td class="col23 center" style="width: 37.5%; vertical-align: top; padding: 0 2px;">
+                        <div class="bold times" style="display: inline-block;">Tribhuvan University</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="col1">
+                        <div class="center bold times">Institute of Medicine</div>
+                    </td>
+                    <td class="col23">
+                        <div class="center bold times">Institute of Medicine</div>
+                    </td>
+                    <td class="col23">
+                        <div class="center bold times">Institute of Medicine</div>
+                    </td>
+                </tr>
+                <tr class="mini">
+                    <td class="col1">
+                        <div class="underline bold times">Counterfoil Examination</div>
+                    </td>
+                    <td class="col23">
+                        <div class="underline bold italics times">To be treated as strictly confidential</div>
+                    </td>
+                    <td class="col23">
+                        <div class="underline bold italics times">To be treated as strictly confidential</div>
+                    </td>
+                </tr>
+                <tr class="mini">
+                    <td class="col1">
+                        <div>&nbsp;&nbsp;Examination held: ${data.date || ""}</div>
+                    </td>
+                    <td class="col23">
+                        <div>&nbsp;&nbsp;Examination held: ${data.date || ""}</div>
+                    </td>
+                    <td class="col23">
+                        <div>&nbsp;&nbsp;Examination held: ${data.date || ""}</div>
+                    </td>
+                </tr>
+                <tr class="mini">
+                    <td class="col1">
+                        <div>&nbsp;&nbsp;Level: ${data.level || ""}</div>
+                    </td>
+                    <td class="col23">
+                        <div>&nbsp;&nbsp;Please follow directions strictly</div>
+                    </td>
+                    <td class="col23">
+                        <div>&nbsp;&nbsp;Please follow directions strictly</div>
+                    </td>
+                </tr>
+                <tr class="mini">
+                    <td class="col1">
+                        <div>&nbsp;&nbsp;Program: ${data.program || ""}&nbsp;&nbsp;&nbsp;&nbsp;Year: ${data.year || ""}</div>
+                    </td>
+                    <td class="col23">
+                        <div>&nbsp;&nbsp;Level: ${data.level || ""}&nbsp;&nbsp;&nbsp;&nbsp;Program: ${data.program || ""}</div>
+                    </td>
+                    <td class="col23">
+                        <div>&nbsp;&nbsp;Level: ${data.level || ""}&nbsp;&nbsp;&nbsp;&nbsp;Program: ${data.program || ""}</div>
+                    </td>
+                </tr>
+                <tr class="mini">
+                    <td class="col1">
+                        <div>&nbsp;&nbsp;Subject: ${data.subject || ""}</div>
+                    </td>
+                    <td class="col23">
+                        <div>&nbsp;&nbsp;Year: ${data.year || ""}&nbsp;&nbsp;&nbsp;&nbsp; Subject: ${data.subject || ""}</div>
+                    </td>
+                    <td class="col23">
+                        <div>&nbsp;&nbsp;Year: ${data.year || ""}&nbsp;&nbsp;&nbsp;&nbsp; Subject: ${data.subject || ""}</div>
+                    </td>
+                </tr>
+                <tr class="mini">
+                    <td class="col1">
+                        <div>&nbsp;&nbsp;Paper: ${data.paper || ""}&nbsp;&nbsp;&nbsp;&nbsp;<span class="bold">${examTypeShort}</span></div>
+                    </td>
+                    <td class="col23">
+                        <div>&nbsp;&nbsp;Paper: ${data.paper || ""}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="bold">${examTypeShort}</span></div>
+                    </td>
+                    <td class="col23">
+                        <div>&nbsp;&nbsp;Paper: ${data.paper || ""}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="bold">${examTypeShort}</span></div>
+                    </td>
+                </tr>
+                <tr class="mini">
+                    <td class="col1">
+                        <div>&nbsp;&nbsp;Full Marks: ${data.full_marks || ""}&nbsp;&nbsp;Pass Marks: ${passMarks}</div>
+                    </td>
+                    <td class="col23">
+                        <div>&nbsp;&nbsp;Full Marks: ${data.full_marks || ""}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Pass Marks: ${passMarks}</div>
+                    </td>
+                    <td class="col23">
+                        <div>&nbsp;&nbsp;Full Marks: ${data.full_marks || ""}&nbsp;&nbsp;&nbsp;&nbsp;Pass Marks: ${passMarks}</div>
+                    </td>
+                </tr>
+                <tr class="mark-tables" style="vertical-align: top;">
+                    <td class="mt1" style="width: 25%; padding: 0 2px;">
+                        <table class="mark-table1" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
+                            <tr>
+                                <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 45%;">Code #</th>
+                                <th class="times huge mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 55%;">Marks Obtained</th>
+                            </tr>
+                            ${leftRows}
+                        </table>
+                    </td>
+                    <td class="mt2" style="width: 37.5%; padding: 0 5px;">
+                        <table class="mark-table2" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
+                            <tr>
+                                <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Code #</th>
+                                <th class="times mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Marks</th>
+                                <th class="times huge wordnumcolumn" style="padding: 2px; text-align: left; border: 1px solid black; font-size: 16px; width: 60%;">Marks in Words</th>
+                            </tr>
+                            ${rightRows1}
+                        </table>
+                    </td>
+                    <td class="mt3" style="width: 37.5%; padding: 0 5px;">
+                        <table class="mark-table3" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
+                            <tr>
+                                <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Code #</th>
+                                <th class="times mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Marks</th>
+                                <th class="times huge wordnumcolumn" style="padding: 2px; text-align: left; border: 1px solid black; font-size: 16px; width: 60%;">Marks in Words</th>
+                            </tr>
+                            ${rightRows2}
+                        </table>
+                    </td>
+                </tr>
+                <tr class="after-marks mini">
+                    <td class="col1" style="vertical-align: top;">
+                        <div class="times">Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span></div>
+                        <div style="height:0.3cm;"></div>
+                        <div class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>
+                        <div class="times">Full Signature of Examiner${examinerSignatureText}</div>
+                        <div class="underline">Note:</div>
+                        <div style="margin-left:20px; font-size: 8pt;">a) All corrections must be initialed. This counter-foil must be preserved by the Examiner as the case may be for six months.</div>
+                    </td>
+                    <td class="col23" style="vertical-align: top;">
+                        <div class="times center" >&nbsp;&nbsp;&nbsp;&nbsp;Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span></div>
+                        ${examinerNameOrSignature}
+                        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+                        <div>Full Signature of Scrutiny Board, if any</div>
+                        <div><span class="underline">Note:</span></div>
+                        <div style="margin-left:0.5cm; font-size: 8pt;">The Scrutiny Board shall Scrutinize and verify the marks submitted by the examiner before forwarding the same to the Examination Division.</div>
+                    </td>
+                    <td class="col23" style="vertical-align: top;">
+                        <div class="times center">&nbsp;&nbsp;&nbsp;&nbsp;Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span></div>
+                        <div style="height:0.3cm;"></div>
+                        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+                        <div class="times">&nbsp;&nbsp;&nbsp;&nbsp;Full ${examinerSignatureText2}</div>
+                        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+                        <div>Full Signature of Scrutiny Board, if any</div>
+                        <div><span class="underline">Note:</span></div>
+                        <div style="margin-left:0.5cm; font-size: 8pt;">The Scrutiny Board shall Scrutinize and verify the marks submitted by the examiner before forwarding the same to the Examination Division.</div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    `;
+
+          if (pageNum < totalPages - 1) {
+            previewHTML += '<div class="page-break"></div>';
+          }
+        }
+
+        const css = `
+        <style>
+            @page {
+                size: A4;
+                margin: 0.3cm 0.3cm !important;
+            }
+            body {
+                font-family: Arial, sans-serif;
+                font-size: 14px;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            .times {
+                font-family: "Times New Roman", Times, serif;
+            }
+            .wholepage {
+                width: 100% !important;
+                border-collapse: collapse;
+                table-layout: fixed !important;
+            }
+            .wholepage .mini {
+                font-size: 12px !important;
+            }
+            .wholepage tr td table tr td,
+            .wholepage tr td table tr th {
+                border: 1px solid black;
+                padding: 1px !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                white-space: nowrap !important;
+            }
+            .wholepage .mark-tables td {
+                text-align: center;
+            }
+            .wholepage .mark-tables td table tr .wordnumcolumn {
+                text-align: left;
+                padding-left: 2px;
+            }
+            .wholepage .mark-tables td table tr .mocolumn {
+                padding-left: 2px;
+                text-align: center;
+            }
+            .highlight {
+                font-weight: bold;
+            }
+            .underline {
+                text-decoration: underline;
+                text-decoration-color: black;
+            }
+            .bold {
+                font-weight: bold;
+            }
+            .center {
+                text-align: center;
+            }
+            .italics {
+                font-style: italic;
+            }
+            .mark-tables .mt1, .mark-tables .mt2, .mark-tables .mt3 {
+                padding: 0 2px !important;
+            }
+            .mark-table1, .mark-table2, .mark-table3 {
+                border: 1px solid black;
+                border-collapse: collapse;
+                width: 95% !important;
+                table-layout: fixed !important;
+                margin: auto;
+            }
+            .rows td {
+                padding: 1px !important;
+                font-size: 16px !important;
+            }
+            #campus-overlay {
+                position: absolute;
+                top: 0.3cm;
+                left: 12.5cm;
+                z-index: 9999;
+                border: 1px solid;
+                padding: 1px;
+                text-align: center;
+                font-size: 14px;
+            }
+            
+            /* Print-specific adjustments */
+            @media print {
+                .preview-panel {
+                    display: block !important;
+                }
+                .page-content {
+                    width: 100% !important;
+                    margin: 0.5cm 0.5cm 0.5cm 0.5cm !important;
+                    transform: none !important;
+                }
+                
+                .wholepage {
+                    width: 98% !important;
+                    table-layout: fixed !important;
+                }
+                
+                .mark-table1, .mark-table2, .mark-table3 {
+                    table-layout: fixed !important;
+                }
+                
+                .rows {
+                    height: ${rowHeightCm}cm !important;
+                }
+                
+                .codecolumn, .mocolumn, .wordnumcolumn {
+                    overflow: hidden !important;
+                    text-overflow: ellipsis !important;
+                }
+            }
+        </style>
+    `;
+
+        document.getElementById("preview-content").innerHTML =
+          css + previewHTML;
+      }
+
+      function loadSavedData() {
+        try {
+          const saved = localStorage.getItem("markfoilData");
+          if (saved) {
+            const data = JSON.parse(saved);
+
+            // Update form fields
+            Object.keys(data).forEach((key) => {
+              if (formElements[key]) {
+                formElements[key].value = data[key];
+                state.data[key] = data[key];
+              }
+            });
+
+            // Update state
+            if (data.passed !== undefined) state.passed = data.passed;
+            if (data.failed !== undefined) state.failed = data.failed;
+            if (data.total !== undefined) state.total = data.total;
+            if (data.currentCodeNumber !== undefined)
+              state.currentCodeNumber = data.currentCodeNumber;
+
+            updateStats();
+            toggleExamTypeFields();
+            validateMarksData();
+            updatePreview();
+            showToast("Data loaded successfully!", 3000);
+          } else {
+            showToast("No saved data found");
+          }
+        } catch (error) {
+          showToast("Error loading data: " + error.message, 4000);
+        }
+      }
+
+      // Print function
+      function generatePDF() {
+        if (!validateInputs() || !validateMarksData()) {
+          showToast("Please fix errors before generating PDF");
+          return;
+        }
+        setTimeout(() => window.print(), 100);
+      }
+      function closeModal() {
+        document.getElementById("infoModal").style.display = "none";
+      }
+
+      // show modal on page load
+      window.addEventListener("load", () => {
+        document.getElementById("infoModal").style.display = "flex";
+      });
+    </script>
+    <!-- <script>
+      // State management
+      const state = {
+        passed: 0,
+        failed: 0,
+        total: 0,
+        currentCodeNumber: 1,
+        data: {
+          date: "",
+          level: "",
+          program: "",
+          year: "",
+          subject: "",
+          paper: "",
+          full_marks: "",
+          exam_type: "Theory",
+          name: "",
+          campus: "",
+          num_of_rows: "30",
+          checkmark: "word",
+          marks_data: "",
+        },
+      };
+
+      // DOM Elements
+      const formElements = {
+        date: document.getElementById("date"),
+        level: document.getElementById("level"),
+        program: document.getElementById("program"),
+        year: document.getElementById("year"),
+        subject: document.getElementById("subject"),
+        paper: document.getElementById("paper"),
+        full_marks: document.getElementById("full_marks"),
+        exam_type: document.getElementById("exam_type"),
+        name: document.getElementById("name"),
+        campus: document.getElementById("campus"),
+        num_of_rows: document.getElementById("num_of_rows"),
+        checkmark: document.getElementById("checkmark"),
+        marks_data: document.getElementById("marks_data"),
+      };
+
+      const statElements = {
+        passed: document.getElementById("passed-count"),
+        failed: document.getElementById("failed-count"),
+        total: document.getElementById("total-count"),
+      };
+
+      let norepeat = false;
       // Initialize
       document.addEventListener("DOMContentLoaded", function () {
         loadSavedData();
@@ -560,7 +1856,7 @@ Example:
           .addEventListener("click", clearAllFields);
 
         // Auto-save on form changes
-        setInterval(saveData, 30000);
+        setInterval(saveData, 3000);
       }
 
       // Helper functions
@@ -592,19 +1888,24 @@ Example:
       }
 
       function handleEnterKey(e) {
-        if (e.key !== "Enter") return;
-        e.preventDefault();
+        if (e.key !== "Enter") {
+          // Handle auto-formatting for non-Enter keys
+          handleMarkAutoFormatting(e);
+          return; // Exit early for non-Enter keys
+        }
 
+        // For Enter key only
         const textarea = e.target;
         const currentLine = getCurrentLine(textarea);
         const parts = currentLine.trim().split(/[\t ]+/);
 
         if (parts.length >= 2) {
+          e.preventDefault(); // Only prevent default if we have valid data
+
           const code = parts[0];
           const mark = parts[1];
           const markNum = parseFloat(mark);
-          const isMarkNumeric =
-            !isNaN(markNum) && /^\d*\.?\d+$/.test(mark.trim());
+          const isMarkNumeric = !isNaN(markNum);
 
           // Validation
           if (isMarkNumeric) {
@@ -616,12 +1917,8 @@ Example:
           } else if (mark.includes(",")) {
             showToast(`Use decimal point (.) not comma (,) for marks`);
             return;
-          } else if (mark.match(/\d/)) {
-            showToast(
-              `Invalid mark format: "${mark}" - enter only numbers or text`,
-            );
-            return;
           }
+          // Allow non-numeric text marks (like "Absent", "NC", etc.)
 
           // Get delimiter and calculate next code
           const delimiterMatch = currentLine.match(/[\t ]+/);
@@ -641,6 +1938,7 @@ Example:
           state.data.marks_data = textarea.value;
           validateMarksData();
           updatePreview();
+
           // Set cursor position and scroll to it
           setTimeout(() => {
             const newCursorPos = getPositionAfterNewLine(
@@ -654,11 +1952,261 @@ Example:
             scrollToCursor(textarea);
           }, 10);
         } else {
+          // Empty or inconsistent entry - show error and prevent new line
+          e.preventDefault();
           showToast(
             `Empty or inconsistent mark entry. Please enter both code number and mark.`,
           );
           return;
         }
+      }
+
+      function handleMarkAutoFormatting(e) {
+        // Only process if it's a number key, decimal point, or backspace
+        if (
+          !/[\d\.]/.test(e.key) &&
+          e.key !== "Backspace" &&
+          e.key !== "Delete"
+        ) {
+          return;
+        }
+
+        // Use setTimeout to check after the key has been processed
+        setTimeout(() => {
+          const textarea = e.target;
+          const currentLine = getCurrentLine(textarea);
+          const currentLineIndex = getCurrentLineIndex(textarea);
+          const parts = currentLine.trim().split(/[\t ]+/);
+
+          // Only auto-format if we have a code and mark
+          if (parts.length >= 2 && parts[0] && /^\d+$/.test(parts[0])) {
+            const code = parts[0];
+            const currentMark = parts[1];
+
+            // Skip if already has decimal or is non-numeric
+            if (currentMark.includes(".") || isNaN(parseFloat(currentMark))) {
+              return;
+            }
+
+            const fullMarks = parseFloat(state.data.full_marks);
+            if (isNaN(fullMarks) || fullMarks <= 0) return;
+
+            const markStr = currentMark;
+            const markLength = markStr.length;
+            let formattedMark = markStr;
+            let shouldFormat = false;
+
+            // SIMPLIFIED: Auto-format logic
+            if (fullMarks <= 100) {
+              if (markLength === 3) {
+                // e.g., 115 -> 11.5
+                formattedMark = `${markStr.substring(0, 2)}.${markStr.substring(2)}`;
+                shouldFormat = true;
+              } else if (markLength === 4) {
+                // e.g., 1000 -> 10.00, 1125 -> 11.25
+                formattedMark = `${markStr.substring(0, 2)}.${markStr.substring(2)}`;
+                shouldFormat = true;
+              }
+            } else {
+              // For full marks > 100 (e.g., 200)
+              if (markLength === 3) {
+                // e.g., 125 -> 12.5
+                formattedMark = `${markStr.substring(0, 2)}.${markStr.substring(2)}`;
+                shouldFormat = true;
+              } else if (markLength === 4) {
+                // e.g., 1125 -> 11.25
+                formattedMark = `${markStr.substring(0, 2)}.${markStr.substring(2)}`;
+                shouldFormat = true;
+              }
+            }
+
+            if (shouldFormat) {
+              // Update the line with formatted mark
+              const lines = textarea.value.split("\n");
+              const delimiter = currentLine.match(/[\t ]+/)?.[0] || " ";
+              lines[currentLineIndex] = `${code}${delimiter}${formattedMark}`;
+              textarea.value = lines.join("\n");
+              state.data.marks_data = textarea.value;
+
+              // Show toast
+              showToast(`Auto-formatted to ${formattedMark}`);
+
+              // Move cursor to end of the formatted mark
+              setTimeout(() => {
+                const lineStart = getLineStartPosition(
+                  textarea,
+                  currentLineIndex,
+                );
+                const newCursorPos =
+                  lineStart +
+                  code.length +
+                  delimiter.length +
+                  formattedMark.length;
+                textarea.setSelectionRange(newCursorPos, newCursorPos);
+                textarea.focus();
+
+                // Validate and update preview
+                validateMarksData();
+                updatePreview();
+
+                // Check if formatted mark is valid and auto-enter
+                const formattedMarkNum = parseFloat(formattedMark);
+                if (!isNaN(formattedMarkNum) && formattedMarkNum <= fullMarks) {
+                  // Auto-Enter after short delay
+                  setTimeout(() => {
+                    const enterEvent = new KeyboardEvent("keydown", {
+                      key: "Enter",
+                      code: "Enter",
+                      keyCode: 13,
+                      which: 13,
+                      bubbles: true,
+                      cancelable: true,
+                    });
+                    textarea.dispatchEvent(enterEvent);
+                  }, 500);
+                }
+              }, 10);
+            }
+          }
+        }, 10);
+      }
+
+      // NEW: Helper to get line start position
+      function getLineStartPosition(textarea, lineIndex) {
+        const lines = textarea.value.split("\n");
+        let position = 0;
+        for (let i = 0; i < lineIndex; i++) {
+          position += (lines[i]?.length || 0) + 1; // +1 for newline
+        }
+        return position;
+      }
+
+      // NEW: Auto-format the mark entry
+      function autoFormatMarkEntry(
+        textarea,
+        lineIndex,
+        code,
+        typedMark,
+        fullMarks,
+      ) {
+        const lines = textarea.value.split("\n");
+        const currentLine = lines[lineIndex];
+        const parts = currentLine.trim().split(/[\t ]+/);
+
+        // If mark is already properly formatted, skip
+        if (parts.length < 2) return;
+
+        const currentMark = parts[1];
+        const markNum = parseFloat(currentMark);
+
+        // Skip if not a valid number
+        if (isNaN(markNum)) return;
+
+        let formattedMark = currentMark;
+        let showToast = false;
+        let toastMessage = "";
+
+        // Auto-format logic based on full marks
+        if (fullMarks <= 100) {
+          // For full marks <= 100
+
+          if (currentMark.length === 3 && !currentMark.includes(".")) {
+            // Typed 3 digits without decimal (e.g., "115" for full marks 20)
+            // Convert to decimal: 115 -> 11.5
+            const integerPart = currentMark.substring(0, 2);
+            const decimalPart = currentMark.substring(2);
+            formattedMark = `${integerPart}.${decimalPart}`;
+            showToast = true;
+            toastMessage = `Mark auto-formatted to ${formattedMark}`;
+          } else if (currentMark.length === 4 && !currentMark.includes(".")) {
+            // Typed 4 digits without decimal (e.g., "1000" for full marks 20)
+            // Convert to decimal: 1000 -> 10.00
+            const integerPart = currentMark.substring(0, 2);
+            const decimalPart = currentMark.substring(2);
+            formattedMark = `${integerPart}.${decimalPart}`;
+            showToast = true;
+            toastMessage = `Mark auto-formatted to ${formattedMark}`;
+          } else if (
+            currentMark.length === 4 &&
+            currentMark.includes(".") &&
+            currentMark.split(".")[1]?.length === 2
+          ) {
+            // Already has 2 decimal places (e.g., "11.25")
+            // Check if mark is valid
+            if (markNum <= fullMarks) {
+              showToast = true;
+              toastMessage = "Mark entered. Press Enter to continue.";
+
+              // Auto-trigger Enter key behavior after delay
+              setTimeout(() => {
+                simulateEnterKey(textarea);
+              }, 300);
+            }
+          }
+        } else {
+          // For full marks > 100 (e.g., 200)
+
+          if (currentMark.length === 3 && !currentMark.includes(".")) {
+            // For marks like 125 -> 12.5
+            const integerPart = currentMark.substring(0, 2);
+            const decimalPart = currentMark.substring(2);
+            formattedMark = `${integerPart}.${decimalPart}`;
+            showToast = true;
+            toastMessage = `Mark auto-formatted to ${formattedMark}`;
+          } else if (currentMark.length === 4 && !currentMark.includes(".")) {
+            // For marks like 1125 -> 11.25
+            const integerPart = currentMark.substring(0, 2);
+            const decimalPart = currentMark.substring(2);
+            formattedMark = `${integerPart}.${decimalPart}`;
+            showToast = true;
+            toastMessage = `Mark auto-formatted to ${formattedMark}`;
+          }
+        }
+
+        // Apply formatting if needed
+        if (showToast) {
+          // Update the line with formatted mark
+          const delimiter = currentLine.match(/[\t ]+/)?.[0] || " ";
+          lines[lineIndex] = `${code}${delimiter}${formattedMark}`;
+          textarea.value = lines.join("\n");
+          state.data.marks_data = textarea.value;
+
+          // Show toast
+          showToast(toastMessage);
+
+          // Move cursor to end of the formatted mark
+          setTimeout(() => {
+            const lineStart = getLineStartPosition(textarea, lineIndex);
+            const newCursorPos =
+              lineStart + code.length + delimiter.length + formattedMark.length;
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
+            textarea.focus();
+
+            // Validate and update preview
+            validateMarksData();
+            updatePreview();
+
+            // If toast message indicates completion, auto-enter after delay
+            if (toastMessage.includes("Press Enter")) {
+              setTimeout(() => {
+                simulateEnterKey(textarea);
+              }, 800);
+            }
+          }, 10);
+        }
+      }
+
+      // NEW: Simulate Enter key press
+      function simulateEnterKey(textarea) {
+        const enterEvent = new KeyboardEvent("keydown", {
+          key: "Enter",
+          code: "Enter",
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true,
+        });
+        textarea.dispatchEvent(enterEvent);
       }
 
       // Clear all fields with confirmation
@@ -1381,7 +2929,7 @@ Example:
       window.addEventListener("load", () => {
         document.getElementById("infoModal").style.display = "flex";
       });
-    </script>
+    </script> -->
     <div class="modal-overlay" id="infoModal">
       <div class="modal">
         <!-- <span class="modal-close" onclick="closeModal()">✕</span> -->
