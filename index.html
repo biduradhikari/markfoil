@@ -679,12 +679,6 @@ Example:
           return; // Exit early for non-Enter keys
         }
 
-        // Clear undo state when Enter is pressed (user accepted the auto-format)
-        // if (lastAutoFormat) {
-        //   lastAutoFormat = null;
-        //   updateUndoButton();
-        // }
-
         // For Enter key only
         const textarea = e.target;
         const currentLine = getCurrentLine(textarea);
@@ -786,6 +780,7 @@ Example:
       }
 
       // NEW: Smart auto-formatting function with undo and smart formatting
+      // NEW: Smart auto-formatting function that ONLY formats when mark exceeds full marks
       function handleMarkAutoFormatting(e) {
         // Only process if it's a number key, decimal point, or backspace
         if (
@@ -817,107 +812,59 @@ Example:
             if (isNaN(fullMarks) || fullMarks <= 0) return;
 
             const markStr = currentMark;
+            const markNum = parseFloat(markStr);
+
+            // CRITICAL: Only auto-format if mark exceeds full marks
+            if (markNum <= fullMarks) {
+              return; // Valid mark, don't auto-format at all
+            }
+
+            // Only reach here if markNum > fullMarks (invalid mark)
             const markLength = markStr.length;
             let formattedMark = markStr;
             let shouldFormat = false;
             let toastMessage = "";
 
-            // SMART AUTO-FORMATTING LOGIC
+            // Since mark exceeds full marks, try to auto-format it
+            // Try last digit as decimal (e.g., 115 -> 11.5 when full marks is 100)
             if (markLength >= 2) {
-              // Need at least 2 digits to auto-format
-              const markNum = parseFloat(markStr);
+              const tryOneDecimal = parseFloat(
+                `${markStr.substring(0, markLength - 1)}.${markStr.substring(markLength - 1)}`,
+              );
 
-              // First check: if raw number exceeds full marks, try auto-formatting
-              if (markNum > fullMarks) {
-                // Try formatting with last digit as decimal
-                const tryOneDecimal = parseFloat(
-                  `${markStr.substring(0, markLength - 1)}.${markStr.substring(markLength - 1)}`,
+              if (tryOneDecimal <= fullMarks) {
+                formattedMark = `${markStr.substring(0, markLength - 1)}.${markStr.substring(markLength - 1)}`;
+                shouldFormat = true;
+                toastMessage = `Auto-formatted to ${formattedMark} (last digit as decimal)`;
+              }
+              // Try last two digits as decimal (e.g., 1125 -> 11.25 when full marks is 100)
+              else if (markLength >= 3) {
+                const tryTwoDecimals = parseFloat(
+                  `${markStr.substring(0, markLength - 2)}.${markStr.substring(markLength - 2)}`,
                 );
 
-                if (tryOneDecimal <= fullMarks) {
-                  formattedMark = `${markStr.substring(0, markLength - 1)}.${markStr.substring(markLength - 1)}`;
+                if (tryTwoDecimals <= fullMarks) {
+                  formattedMark = `${markStr.substring(0, markLength - 2)}.${markStr.substring(markLength - 2)}`;
                   shouldFormat = true;
-                  toastMessage = `Auto-formatted to ${formattedMark} (last digit as decimal)`;
-                }
-                // If one decimal doesn't work, try two decimals (if we have at least 3 digits)
-                else if (markLength >= 3) {
-                  const tryTwoDecimals = parseFloat(
-                    `${markStr.substring(0, markLength - 2)}.${markStr.substring(markLength - 2)}`,
-                  );
-
-                  if (tryTwoDecimals <= fullMarks) {
-                    formattedMark = `${markStr.substring(0, markLength - 2)}.${markStr.substring(markLength - 2)}`;
-                    shouldFormat = true;
-                    toastMessage = `Auto-formatted to ${formattedMark} (last 2 digits as decimal)`;
-                  } else {
-                    // Can't auto-format to valid mark - show error
-                    showToast(
-                      `Mark ${markStr} exceeds full marks of ${fullMarks} even after auto-formatting attempts!`,
-                      4000,
-                    );
-                    return;
-                  }
+                  toastMessage = `Auto-formatted to ${formattedMark} (2 decimal places)`;
                 } else {
-                  // Not enough digits to try two decimals
                   showToast(
                     `Mark ${markStr} exceeds full marks of ${fullMarks}!`,
                     4000,
                   );
                   return;
                 }
-              }
-              // Second: auto-format based on digit patterns (original logic)
-              else if (fullMarks <= 100) {
-                if (markLength === 3) {
-                  // e.g., 115 -> 11.5
-                  formattedMark = `${markStr.substring(0, 2)}.${markStr.substring(2)}`;
-                  shouldFormat = true;
-                  toastMessage = `Auto-formatted to ${formattedMark}`;
-                } else if (markLength === 4) {
-                  // e.g., 1000 -> 10.00, 1125 -> 11.25
-                  formattedMark = `${markStr.substring(0, 2)}.${markStr.substring(2)}`;
-                  shouldFormat = true;
-
-                  // Check for double decimal case (like 1125 -> 11.25)
-                  if (markStr.substring(2).length === 2) {
-                    toastMessage = `Auto-formatted to ${formattedMark} (2 decimal places)`;
-                  } else {
-                    toastMessage = `Auto-formatted to ${formattedMark}`;
-                  }
-                } else if (
-                  markLength === 5 &&
-                  markStr.substring(3).length === 2
-                ) {
-                  // Special case: 5 digits with last 2 as decimals (e.g., 11225 -> 112.25)
-                  formattedMark = `${markStr.substring(0, 3)}.${markStr.substring(3)}`;
-                  shouldFormat = true;
-                  toastMessage = `Auto-formatted to ${formattedMark} (2 decimal places)`;
-                }
               } else {
-                // For full marks > 100 (e.g., 200)
-                if (markLength === 3) {
-                  // e.g., 125 -> 12.5
-                  formattedMark = `${markStr.substring(0, 2)}.${markStr.substring(2)}`;
-                  shouldFormat = true;
-                  toastMessage = `Auto-formatted to ${formattedMark}`;
-                } else if (markLength === 4) {
-                  // e.g., 1125 -> 11.25
-                  formattedMark = `${markStr.substring(0, 2)}.${markStr.substring(2)}`;
-                  shouldFormat = true;
-
-                  // Check for double decimal case
-                  if (markStr.substring(2).length === 2) {
-                    toastMessage = `Auto-formatted to ${formattedMark} (2 decimal places)`;
-                  } else {
-                    toastMessage = `Auto-formatted to ${formattedMark}`;
-                  }
-                }
+                showToast(
+                  `Mark ${markStr} exceeds full marks of ${fullMarks}!`,
+                  4000,
+                );
+                return;
               }
             }
 
-            // NEW: Clean up trailing zeros from decimal numbers
+            // Clean up trailing zeros
             if (formattedMark.includes(".")) {
-              // Remove trailing zeros and trailing decimal point if all zeros
               formattedMark = formattedMark.replace(/(\.\d*?[1-9])0+$/, "$1");
               formattedMark = formattedMark.replace(/\.0+$/, "");
             }
@@ -931,23 +878,21 @@ Example:
                 lineText: currentLine,
               };
 
-              // Update undo button
               updateUndoButton();
 
-              // Update the line with formatted mark
+              // Update the line
               const lines = textarea.value.split("\n");
               const delimiter = currentLine.match(/[\t ]+/)?.[0] || " ";
               lines[currentLineIndex] = `${code}${delimiter}${formattedMark}`;
               textarea.value = lines.join("\n");
               state.data.marks_data = textarea.value;
 
-              // Show toast with undo button hint (longer duration)
               showToast(
-                `${toastMessage}. Click "Undo Last Auto-Format" button to revert.`,
+                `${toastMessage}. Click "Undo Last Auto-Format" to revert.`,
                 5000,
               );
 
-              // Move cursor to end of the formatted mark
+              // Move cursor
               setTimeout(() => {
                 const lineStart = getLineStartPosition(
                   textarea,
@@ -961,14 +906,12 @@ Example:
                 textarea.setSelectionRange(newCursorPos, newCursorPos);
                 textarea.focus();
 
-                // Validate and update preview
                 validateMarksData();
                 updatePreview();
 
-                // Check if formatted mark is valid and auto-enter
+                // Auto-enter if valid
                 const formattedMarkNum = parseFloat(formattedMark);
                 if (!isNaN(formattedMarkNum) && formattedMarkNum <= fullMarks) {
-                  // Auto-Enter after short delay
                   setTimeout(() => {
                     const enterEvent = new KeyboardEvent("keydown", {
                       key: "Enter",
@@ -1858,6 +1801,10 @@ Example:
                 
                 .header-section tr {
                     height: calc(4cm / 9) !important;
+                }
+                #campus-overlay {
+                    left: 60% !important; /* Adjust percentage as needed */
+                    transform: translateX(-50%) !important; /* Center it */
                 }
             }
             @media print {
