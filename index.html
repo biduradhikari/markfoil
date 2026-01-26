@@ -145,7 +145,7 @@
         border-radius: 4px;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
         z-index: 1000;
-        font-size: 1.5rem;
+        font-size: 1.2rem;
         display: none;
       }
 
@@ -268,6 +268,10 @@
       @media (max-width: 700px) {
         body {
           height: auto;
+        }
+
+        .toast {
+          font-size: 0.8rem !important;
         }
 
         .container {
@@ -429,6 +433,10 @@
             <div class="stat-label">Failed</div>
           </div>
           <div class="stat-item">
+            <div class="stat-value" id="absent-count">0</div>
+            <div class="stat-label">Absent</div>
+          </div>
+          <div class="stat-item">
             <div class="stat-value" id="total-count">0</div>
             <div class="stat-label">Total</div>
           </div>
@@ -491,6 +499,7 @@ Example:
       const state = {
         passed: 0,
         failed: 0,
+        absent: 0,
         total: 0,
         currentCodeNumber: 1,
         data: {
@@ -532,6 +541,7 @@ Example:
       const statElements = {
         passed: document.getElementById("passed-count"),
         failed: document.getElementById("failed-count"),
+        absent: document.getElementById("absent-count"),
         total: document.getElementById("total-count"),
       };
 
@@ -565,13 +575,13 @@ Example:
         undoButton.className = "secondary no-print";
         undoButton.innerHTML = "↶ Undo Last Auto-Format";
         undoButton.style.cssText = `
-      margin-top: 8px;
-      font-size: 12px;
-      padding: 6px 12px;
-      display: none;
-      width: 100%;
-      text-align: center;
-    `;
+        margin-top: 8px;
+        font-size: 12px;
+        padding: 6px 12px;
+        display: none;
+        width: 100%;
+        text-align: center;
+      `;
         undoButton.addEventListener("click", undoLastAutoFormat);
 
         // Insert after the textarea
@@ -593,6 +603,12 @@ Example:
         }
       }
 
+      function toggleAbsentCount() {
+        const isTheory = formElements.exam_type.value === "Theory";
+        document.getElementById("absent-count").style.display = isTheory
+          ? "none"
+          : "block";
+      }
       // Event Listeners
       function setupEventListeners() {
         // Form input changes
@@ -614,6 +630,7 @@ Example:
         formElements.exam_type.addEventListener("change", function () {
           state.data.exam_type = this.value;
           toggleExamTypeFields();
+          toggleAbsentCount();
           updatePreview();
         });
 
@@ -779,7 +796,6 @@ Example:
         }, 10);
       }
 
-      // NEW: Smart auto-formatting function with undo and smart formatting
       // NEW: Smart auto-formatting function that ONLY formats when mark exceeds full marks
       function handleMarkAutoFormatting(e) {
         // Only process if it's a number key, decimal point, or backspace
@@ -1001,6 +1017,7 @@ Example:
             ...state.data,
             passed: state.passed,
             failed: state.failed,
+            absent: state.absent,
             total: state.total,
             currentCodeNumber: state.currentCodeNumber,
             timestamp: new Date().toISOString(),
@@ -1043,6 +1060,11 @@ Example:
 
         // Reset form fields
         Object.keys(formElements).forEach((key) => {
+          if (key === "table_height_cm") {
+            // Leave it as is
+            state.data[key] = formElements[key].value;
+            return; // skip the rest
+          }
           if (key === "exam_type") {
             formElements[key].value = "Theory";
           } else if (key === "checkmark") {
@@ -1090,12 +1112,14 @@ Example:
       function updateStats() {
         statElements.passed.textContent = state.passed;
         statElements.failed.textContent = state.failed;
+        statElements.absent.textContent = state.absent;
         statElements.total.textContent = state.total;
       }
 
       function resetStats() {
         state.passed = 0;
         state.failed = 0;
+        state.absent = 0;
         state.total = 0;
         state.currentCodeNumber = 1;
         updateStats();
@@ -1138,6 +1162,7 @@ Example:
         const passMarks = fullMarks / 2;
         let passed = 0,
           failed = 0,
+          absent = 0,
           hasError = false;
         const seenCodes = new Set();
 
@@ -1188,7 +1213,17 @@ Example:
                 );
                 hasError = true;
               }
-              markNum >= passMarks ? passed++ : failed++;
+              // Count based on exam type
+              if (state.data.exam_type === "Practical") {
+                if (markNum >= passMarks) {
+                  passed++; // Present and passed
+                } else {
+                  failed++; // Present but failed
+                }
+              } else {
+                // Theory exam
+                markNum >= passMarks ? passed++ : failed++;
+              }
             }
             // If it's an incomplete decimal (like "29."), skip validation until user finishes typing
           } else if (markStr.includes(",")) {
@@ -1207,12 +1242,24 @@ Example:
               hasError = true;
               return;
             }
+          } else {
+            // Non-numeric text (no digits at all)
+            if (state.data.exam_type === "Practical") {
+              // For Practical exams, non-numeric text = Absent
+              absent++;
+            } else {
+              // For Theory exams, non-numeric text = Failed
+              failed++;
+            }
           }
         });
 
         state.passed = passed;
         state.failed = failed;
-        state.total = passed + failed;
+        state.absent = absent;
+        // FIXED: Include absent in total count
+        state.total = passed + failed + absent;
+
         updateStats();
 
         formElements.marks_data.classList.toggle("error", hasError);
@@ -1335,14 +1382,14 @@ Example:
         let examinerNameOrSignature = "";
         if (data.exam_type === "Theory") {
           examinerNameOrSignature = `
-        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 16px;">${data.name || "Examiner Name"}</span></div>
-        <div class="times" style="border-top: 1px solid black;padding-top: 2px;">&nbsp;&nbsp;&nbsp;&nbsp;<span>Full <span class="bold">NAME</span> of Examiner</span></div>
-    `;
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 16px;">${data.name || "Examiner Name"}</span></div>
+          <div class="times" style="border-top: 1px solid black;padding-top: 2px;">&nbsp;&nbsp;&nbsp;&nbsp;<span>Full <span class="bold">NAME</span> of Examiner</span></div>
+      `;
         } else {
           examinerNameOrSignature = `
-        <div style="height:0.5cm;"><br></div>
-        <div class="times" style="border-top: 1px solid black;padding-top: 2px;">&nbsp;&nbsp;&nbsp;&nbsp;<span>Full Signature of Examiners</span></div>
-    `;
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 16px;">&nbsp;</span></div>
+          <div class="times" style="border-top: 1px solid black;padding-top: 2px;">&nbsp;&nbsp;&nbsp;&nbsp;<span>Full Signature of Examiners</span></div>
+      `;
         }
 
         // Generate pages
@@ -1362,7 +1409,8 @@ Example:
             rightRows1 = "",
             rightRows2 = "";
           let pagePassed = 0,
-            pageFailed = 0;
+            pageFailed = 0,
+            pageAbsent = 0;
 
           pageLines.forEach((line) => {
             const parts = line.trim().split(/[\t ]+/);
@@ -1370,6 +1418,8 @@ Example:
             const mark = parts[1] || "";
             const markNum = parseFloat(mark);
             const isNumber = !isNaN(markNum);
+            const isAbsentText =
+              !isNumber && mark.toLowerCase().includes("absent");
             const highlightClass =
               !isNumber || (isNumber && markNum < passMarks) ? "highlight" : "";
 
@@ -1377,27 +1427,46 @@ Example:
             if (isNumber) {
               wordNumber =
                 checkmarkType === "word" ? wordnum(markNum) : digitnum(markNum);
-              markNum >= passMarks ? pagePassed++ : pageFailed++;
+
+              // Count based on exam type
+              if (data.exam_type === "Practical") {
+                if (markNum >= passMarks) {
+                  pagePassed++; // Present and passed
+                } else {
+                  pageFailed++; // Present but failed
+                }
+              } else {
+                // Theory exam
+                markNum >= passMarks ? pagePassed++ : pageFailed++;
+              }
             } else {
               wordNumber = mark;
-            }
 
+              // Count non-numeric marks
+              if (data.exam_type === "Practical") {
+                // For Practical exams, ANY non-numeric text = Absent
+                pageAbsent++;
+              } else {
+                // For Theory exams, all non-numeric marks count as failed
+                pageFailed++;
+              }
+            }
             const rowStyle = `height: ${rowHeightCm}cm !important;`;
 
             leftRows += `
-            <tr class="rows ${highlightClass}" style="${rowStyle}">
-                <td class="huge codecolumn" style="font-size: 16px; padding: 0 5px;">${code}</td>
-                <td class="mocolumn" style="font-size: 16px; padding: 0 5px;">${mark}</td>
-            </tr>
-        `;
+              <tr class="rows ${highlightClass}" style="${rowStyle}">
+                  <td class="huge codecolumn" style="font-size: 16px; padding: 0 5px;">${code}</td>
+                  <td class="mocolumn" style="font-size: 16px; padding: 0 5px;">${mark}</td>
+              </tr>
+          `;
 
             const rightRow = `
-            <tr class="rows ${highlightClass}" style="${rowStyle}">
-                <td class="huge codecolumn" style="font-size: 16px; padding: 0 5px;">${code}</td>
-                <td class="mocolumn" style="font-size: 16px; padding: 0 5px; text-align: center;">${mark}</td>
-                <td class="wordnumcolumn" style="font-size: 16px; padding: 0 5px;">${wordNumber.charAt(0).toUpperCase() + wordNumber.slice(1)}</td>
-            </tr>
-        `;
+              <tr class="rows ${highlightClass}" style="${rowStyle}">
+                  <td class="huge codecolumn" style="font-size: 16px; padding: 0 5px;">${code}</td>
+                  <td class="mocolumn" style="font-size: 16px; padding: 0 5px; text-align: center;">${mark}</td>
+                  <td class="wordnumcolumn" style="font-size: 16px; padding: 0 5px;">${wordNumber.charAt(0).toUpperCase() + wordNumber.slice(1)}</td>
+              </tr>
+          `;
             rightRows1 += rightRow;
             rightRows2 += rightRow;
           });
@@ -1408,199 +1477,197 @@ Example:
               : 'style="display: none;"';
 
           previewHTML += `
-        <div class="page-content" style="position: relative;">
-            <div id='campus-overlay' ${campusOverlayStyle}>
-                ${data.campus || "CAMPUS"}
-            </div>
-            
-            <table class="wholepage" style="width: 100%; border-collapse: collapse; table-layout: fixed;">
-              <tbody class="header-section"> 
-                <tr>
-                    <td class="col1" style="width: 25%; vertical-align: top; padding: 0 2px;">
-                        <div class="center bold times">Tribhuvan University</div>
-                    </td>
-                    <td class="col23" style="width: 37.5%; vertical-align: top; padding: 0 2px;">
-                        <div class="center bold times">Tribhuvan University</div>
-                    </td>
-                    <td class="col23 center" style="width: 37.5%; vertical-align: top; padding: 0 2px;">
-                        <div class="bold times" style="display: inline-block;">Tribhuvan University</div>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="col1">
-                        <div class="center bold times">Institute of Medicine</div>
-                    </td>
-                    <td class="col23">
-                        <div class="center bold times">Institute of Medicine</div>
-                    </td>
-                    <td class="col23">
-                        <div class="center bold times">Institute of Medicine</div>
-                    </td>
-                </tr>
-                <tr class="mini">
-                    <td class="col1">
-                        <div class="underline bold times">Counterfoil Examination</div>
-                    </td>
-                    <td class="col23">
-                        <div class="underline bold italics times">To be treated as strictly confidential</div>
-                    </td>
-                    <td class="col23">
-                        <div class="underline bold italics times">To be treated as strictly confidential</div>
-                    </td>
-                </tr>
-                <tr class="mini">
-                    <td class="col1">
-                        <div>&nbsp;&nbsp;Examination held: ${data.date || ""}</div>
-                    </td>
-                    <td class="col23">
-                        <div>&nbsp;&nbsp;Examination held: ${data.date || ""}</div>
-                    </td>
-                    <td class="col23">
-                        <div>&nbsp;&nbsp;Examination held: ${data.date || ""}</div>
-                    </td>
-                </tr>
-                <tr class="mini">
-                    <td class="col1">
-                        <div>&nbsp;&nbsp;Level: ${data.level || ""}</div>
-                    </td>
-                    <td class="col23">
-                        <div>&nbsp;&nbsp;Please follow directions strictly</div>
-                    </td>
-                    <td class="col23">
-                        <div>&nbsp;&nbsp;Please follow directions strictly</div>
-                    </td>
-                </tr>
-                <tr class="mini">
-                    <td class="col1">
-                        <div>&nbsp;&nbsp;Program: ${data.program || ""}&nbsp;&nbsp;&nbsp;&nbsp;Year: ${data.year || ""}</div>
-                    </td>
-                    <td class="col23">
-                        <div>&nbsp;&nbsp;Level: ${data.level || ""}&nbsp;&nbsp;&nbsp;&nbsp;Program: ${data.program || ""}</div>
-                    </td>
-                    <td class="col23">
-                        <div>&nbsp;&nbsp;Level: ${data.level || ""}&nbsp;&nbsp;&nbsp;&nbsp;Program: ${data.program || ""}</div>
-                    </td>
-                </tr>
-                <tr class="mini">
-                    <td class="col1" style="
-                        height: 0.8cm !important;
-                        max-height: 0.8cm !important;
-                        min-height: 0.8cm !important;
-                        overflow: hidden !important;
-                        position: relative !important;
-                        padding: 0 2px !important;
-                    ">
-                        <div style="
-                            max-height: 0.8cm !important;
-                            overflow: hidden !important;
-                            position: relative !important;
-                            line-height: 0.4cm !important;
-                        ">&nbsp;&nbsp;Subject: ${data.subject || ""}</div>
-                        <!-- Fade-out effect for overflow -->
-                        <div style="
-                            position: absolute !important;
-                            bottom: 0 !important;
-                            right: 0 !important;
-                            width: 20px !important;
-                            height: 0.4cm !important;
-                            background: linear-gradient(90deg, transparent, white 50%) !important;
-                            pointer-events: none !important;
-                        "></div>
-                    </td>
-                    <td class="col23" style="vertical-align: top; padding: 0 2px;">
-                        <div>&nbsp;&nbsp;Year: ${data.year || ""}&nbsp;&nbsp;&nbsp;&nbsp; Subject: ${data.subject || ""}</div>
-                    </td>
-                    <td class="col23" style="vertical-align: top; padding: 0 2px;">
-                        <div>&nbsp;&nbsp;Year: ${data.year || ""}&nbsp;&nbsp;&nbsp;&nbsp; Subject: ${data.subject || ""}</div>
-                    </td>
-                </tr>
-                <tr class="mini">
-                    <td class="col1">
-                        <div>&nbsp;&nbsp;Paper: ${data.paper || ""}&nbsp;&nbsp;&nbsp;&nbsp;<span class="bold">${examTypeShort}</span></div>
-                    </td>
-                    <td class="col23">
-                        <div>&nbsp;&nbsp;Paper: ${data.paper || ""}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="bold">${examTypeShort}</span></div>
-                    </td>
-                    <td class="col23">
-                        <div>&nbsp;&nbsp;Paper: ${data.paper || ""}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="bold">${examTypeShort}</span></div>
-                    </td>
-                </tr>
-                <tr class="mini">
-                    <td class="col1">
-                        <div>&nbsp;&nbsp;Full Marks: ${data.full_marks || ""}&nbsp;&nbsp;Pass Marks: ${passMarks}</div>
-                    </td>
-                    <td class="col23">
-                        <div>&nbsp;&nbsp;Full Marks: ${data.full_marks || ""}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Pass Marks: ${passMarks}</div>
-                    </td>
-                    <td class="col23">
-                        <div>&nbsp;&nbsp;Full Marks: ${data.full_marks || ""}&nbsp;&nbsp;&nbsp;&nbsp;Pass Marks: ${passMarks}</div>
-                    </td>
-                </tr>
-              </tbody>
-              <tbody class="mark-table-section">
-                <tr class="mark-tables" style="vertical-align: top;">
-                    <td class="mt1" style="width: 25%; padding: 0 2px;">
-                        <table class="mark-table1" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
-                            <tr>
-                                <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 45%;">Code #</th>
-                                <th class="times huge mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 55%;">Marks</th>
-                            </tr>
-                            ${leftRows}
-                        </table>
-                    </td>
-                    <td class="mt2" style="width: 37.5%; padding: 0 5px;">
-                        <table class="mark-table2" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
-                            <tr>
-                                <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Code #</th>
-                                <th class="times mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Marks</th>
-                                <th class="times huge wordnumcolumn" style="padding: 2px; text-align: left; border: 1px solid black; font-size: 16px; width: 60%;">Marks in Words</th>
-                            </tr>
-                            ${rightRows1}
-                        </table>
-                    </td>
-                    <td class="mt3" style="width: 37.5%; padding: 0 5px;">
-                        <table class="mark-table3" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
-                            <tr>
-                                <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Code #</th>
-                                <th class="times mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Marks</th>
-                                <th class="times huge wordnumcolumn" style="padding: 2px; text-align: left; border: 1px solid black; font-size: 16px; width: 60%;">Marks in Words</th>
-                            </tr>
-                            ${rightRows2}
-                        </table>
-                    </td>
-                </tr>
-              </tbody>
-                <tr class="after-marks mini">
-                    <td class="col1" style="vertical-align: top;">
-                        <div class="times">Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span></div>
-                        <div style="height:0.3cm;"></div>
-                        <div class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>
-                        <div class="times">Full Signature of Examiner${examinerSignatureText}</div>
-                        <div class="underline">Note:</div>
-                        <div style="margin-left:20px; font-size: 8pt;">a) All corrections must be initialed. This counter-foil must be preserved by the Examiner as the case may be for six months.</div>
-                    </td>
-                    <td class="col23" style="vertical-align: top;">
-                        <div class="times center" >&nbsp;&nbsp;&nbsp;&nbsp;Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span></div>
-                        ${examinerNameOrSignature}
-                        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
-                        <div>Full Signature of Scrutiny Board, if any</div>
-                        <div><span class="underline">Note:</span></div>
-                        <div style="margin-left:0.5cm; font-size: 8pt;">The Scrutiny Board shall Scrutinize and verify the marks submitted by the examiner before forwarding the same to the Examination Division.</div>
-                    </td>
-                    <td class="col23" style="vertical-align: top;">
-                        <div class="times center">&nbsp;&nbsp;&nbsp;&nbsp;Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span></div>
-                        <div style="height:0.3cm;"></div>
-                        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
-                        <div class="times">&nbsp;&nbsp;&nbsp;&nbsp;Full ${examinerSignatureText2}</div>
-                        <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
-                        <div>Full Signature of Scrutiny Board, if any</div>
-                        <div><span class="underline">Note:</span></div>
-                        <div style="margin-left:0.5cm; font-size: 8pt;">The Scrutiny Board shall Scrutinize and verify the marks submitted by the examiner before forwarding the same to the Examination Division.</div>
-                    </td>
-                </tr>
-            </table>
-        </div>
-    `;
+          <div class="page-content" style="position: relative;">
+              <div id='campus-overlay' ${campusOverlayStyle}>
+                  ${data.campus || "CAMPUS"}
+              </div>
+
+              <table class="wholepage" style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+                <tbody class="header-section">
+                  <tr>
+                      <td class="col1" style="width: 25%; vertical-align: top; padding: 0 2px;">
+                          <div class="center bold times">Tribhuvan University</div>
+                      </td>
+                      <td class="col23" style="width: 37.5%; vertical-align: top; padding: 0 2px;">
+                          <div class="center bold times">Tribhuvan University</div>
+                      </td>
+                      <td class="col23 center" style="width: 37.5%; vertical-align: top; padding: 0 2px;">
+                          <div class="bold times" style="display: inline-block;">Tribhuvan University</div>
+                      </td>
+                  </tr>
+                  <tr>
+                      <td class="col1">
+                          <div class="center bold times">Institute of Medicine</div>
+                      </td>
+                      <td class="col23">
+                          <div class="center bold times">Institute of Medicine</div>
+                      </td>
+                      <td class="col23">
+                          <div class="center bold times">Institute of Medicine</div>
+                      </td>
+                  </tr>
+                  <tr class="mini">
+                      <td class="col1">
+                          <div class="underline bold times">Counterfoil Examination</div>
+                      </td>
+                      <td class="col23">
+                          <div class="underline bold italics times">To be treated as strictly confidential</div>
+                      </td>
+                      <td class="col23">
+                          <div class="underline bold italics times">To be treated as strictly confidential</div>
+                      </td>
+                  </tr>
+                  <tr class="mini">
+                      <td class="col1">
+                          <div>&nbsp;&nbsp;Examination held: ${data.date || ""}</div>
+                      </td>
+                      <td class="col23">
+                          <div>&nbsp;&nbsp;Examination held: ${data.date || ""}</div>
+                      </td>
+                      <td class="col23">
+                          <div>&nbsp;&nbsp;Examination held: ${data.date || ""}</div>
+                      </td>
+                  </tr>
+                  <tr class="mini">
+                      <td class="col1">
+                          <div>&nbsp;&nbsp;Level: ${data.level || ""}</div>
+                      </td>
+                      <td class="col23">
+                          <div>&nbsp;&nbsp;Please follow directions strictly</div>
+                      </td>
+                      <td class="col23">
+                          <div>&nbsp;&nbsp;Please follow directions strictly</div>
+                      </td>
+                  </tr>
+                  <tr class="mini">
+                      <td class="col1">
+                          <div>&nbsp;&nbsp;Program: ${data.program || ""}&nbsp;&nbsp;&nbsp;&nbsp;Year: ${data.year || ""}</div>
+                      </td>
+                      <td class="col23">
+                          <div>&nbsp;&nbsp;Level: ${data.level || ""}&nbsp;&nbsp;&nbsp;&nbsp;Program: ${data.program || ""}</div>
+                      </td>
+                      <td class="col23">
+                          <div>&nbsp;&nbsp;Level: ${data.level || ""}&nbsp;&nbsp;&nbsp;&nbsp;Program: ${data.program || ""}</div>
+                      </td>
+                  </tr>
+                  <tr class="mini">
+                      <td class="col1" style="
+                          height: 0.8cm !important;
+                          max-height: 0.8cm !important;
+                          min-height: 0.8cm !important;
+                          overflow: hidden !important;
+                          position: relative !important;
+                          padding: 0 2px !important;
+                      ">
+                          <div style="
+                              max-height: 0.8cm !important;
+                              overflow: hidden !important;
+                              position: relative !important;
+                              line-height: 0.4cm !important;
+                          ">&nbsp;&nbsp;Subject: ${data.subject || ""}</div>
+                          <!-- Fade-out effect for overflow -->
+                          <div style="
+                              position: absolute !important;
+                              bottom: 0 !important;
+                              right: 0 !important;
+                              width: 20px !important;
+                              height: 0.4cm !important;
+                              background: linear-gradient(90deg, transparent, white 50%) !important;
+                              pointer-events: none !important;
+                          "></div>
+                      </td>
+                      <td class="col23" style="vertical-align: top; padding: 0 2px;">
+                          <div>&nbsp;&nbsp;Year: ${data.year || ""}&nbsp;&nbsp;&nbsp;&nbsp; Subject: ${data.subject || ""}</div>
+                      </td>
+                      <td class="col23" style="vertical-align: top; padding: 0 2px;">
+                          <div>&nbsp;&nbsp;Year: ${data.year || ""}&nbsp;&nbsp;&nbsp;&nbsp; Subject: ${data.subject || ""}</div>
+                      </td>
+                  </tr>
+                  <tr class="mini">
+                      <td class="col1">
+                          <div>&nbsp;&nbsp;Paper: ${data.paper || ""}&nbsp;&nbsp;&nbsp;&nbsp;<span class="bold">${examTypeShort}</span></div>
+                      </td>
+                      <td class="col23">
+                          <div>&nbsp;&nbsp;Paper: ${data.paper || ""}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="bold">${examTypeShort}</span></div>
+                      </td>
+                      <td class="col23">
+                          <div>&nbsp;&nbsp;Paper: ${data.paper || ""}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="bold">${examTypeShort}</span></div>
+                      </td>
+                  </tr>
+                  <tr class="mini">
+                      <td class="col1">
+                          <div>&nbsp;&nbsp;Full Marks: ${data.full_marks || ""}&nbsp;&nbsp;Pass Marks: ${passMarks}</div>
+                      </td>
+                      <td class="col23">
+                          <div>&nbsp;&nbsp;Full Marks: ${data.full_marks || ""}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Pass Marks: ${passMarks}</div>
+                      </td>
+                      <td class="col23">
+                          <div>&nbsp;&nbsp;Full Marks: ${data.full_marks || ""}&nbsp;&nbsp;&nbsp;&nbsp;Pass Marks: ${passMarks}</div>
+                      </td>
+                  </tr>
+                </tbody>
+                <tbody class="mark-table-section">
+                  <tr class="mark-tables" style="vertical-align: top;">
+                      <td class="mt1" style="width: 25%; padding: 0 2px;">
+                          <table class="mark-table1" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
+                              <tr>
+                                  <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 45%;">Code #</th>
+                                  <th class="times huge mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 55%;">Marks</th>
+                              </tr>
+                              ${leftRows}
+                          </table>
+                      </td>
+                      <td class="mt2" style="width: 37.5%; padding: 0 5px;">
+                          <table class="mark-table2" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
+                              <tr>
+                                  <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Code #</th>
+                                  <th class="times mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Marks</th>
+                                  <th class="times huge wordnumcolumn" style="padding: 2px; text-align: left; border: 1px solid black; font-size: 16px; width: 60%;">Marks in Words</th>
+                              </tr>
+                              ${rightRows1}
+                          </table>
+                      </td>
+                      <td class="mt3" style="width: 37.5%; padding: 0 5px;">
+                          <table class="mark-table3" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
+                              <tr>
+                                  <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Code #</th>
+                                  <th class="times mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Marks</th>
+                                  <th class="times huge wordnumcolumn" style="padding: 2px; text-align: left; border: 1px solid black; font-size: 16px; width: 60%;">Marks in Words</th>
+                              </tr>
+                              ${rightRows2}
+                          </table>
+                      </td>
+                  </tr>
+                </tbody>
+                  <tr class="after-marks mini">
+                      <td class="col1" style="vertical-align: top;">
+                          <div class="times">Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span>${data.exam_type === "Practical" ? `&nbsp;&nbsp;Absent: <span class="underline">${pageAbsent}</span>` : ""}</div>
+                          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 16px;">&nbsp;</span></div>
+                          <div class="times" style="border-top: 1px solid black;">Full Signature of Examiner${examinerSignatureText}</div>
+                          <div class="underline">Note:</div>
+                          <div style="margin-left:20px; font-size: 8pt;">a) All corrections must be initialed. This counter-foil must be preserved by the Examiner as the case may be for six months.</div>
+                      </td>
+                      <td class="col23" style="vertical-align: top;">
+                          <div class="times center" >&nbsp;&nbsp;&nbsp;&nbsp;Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span>${data.exam_type === "Practical" ? `&nbsp;&nbsp;Absent: <span class="underline">${pageAbsent}</span>` : ""}</div>
+                          ${examinerNameOrSignature}
+                          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+                          <div>&nbsp;&nbsp;&nbsp;&nbsp;Full Signature of Scrutiny Board, if any</div>
+                          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">Note:</span></div>
+                          <div style="margin-left:0.5cm; font-size: 8pt;">The Scrutiny Board shall Scrutinize and verify the marks submitted by the examiner before forwarding the same to the Examination Division.</div>
+                      </td>
+                      <td class="col23" style="vertical-align: top;">
+                          <div class="times center">&nbsp;&nbsp;&nbsp;&nbsp;Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span>${data.exam_type === "Practical" ? `&nbsp;&nbsp;Absent: <span class="underline">${pageAbsent}</span>` : ""}</div>
+                          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 16px;">&nbsp;</span></div>
+                          <div class="times" style="border-top: 1px solid black;">&nbsp;&nbsp;&nbsp;&nbsp;Full ${examinerSignatureText2}</div>
+                          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+                          <div>Full Signature of Scrutiny Board, if any</div>
+                          <div><span class="underline">Note:</span></div>
+                          <div style="margin-left:0.5cm; font-size: 8pt;">The Scrutiny Board shall Scrutinize and verify the marks submitted by the examiner before forwarding the same to the Examination Division.</div>
+                      </td>
+                  </tr>
+              </table>
+          </div>
+      `;
 
           if (pageNum < totalPages - 1) {
             previewHTML += '<div class="page-break"></div>';
@@ -1608,245 +1675,245 @@ Example:
         }
 
         const css = `
-        <style>
-            @page {
-                size: A4;
-                margin: 0.3cm 0.3cm !important;
-            }
-            body {
-                font-family: Arial, sans-serif;
-                font-size: 14px;
-                margin: 0 !important;
-                padding: 0 !important;
-            }
-            .times {
-                font-family: "Times New Roman", Times, serif;
-            }
-            .wholepage {
-                width: 100% !important;
-                border-collapse: collapse;
-                table-layout: fixed !important;
-            }
-            .wholepage .mini {
-                font-size: 12px !important;
-            }
-            .wholepage tr td table tr td,
-            .wholepage tr td table tr th {
-                border: 1px solid black;
-                padding: 1px !important;
-                overflow: hidden !important;
-                text-overflow: ellipsis !important;
-                white-space: nowrap !important;
-            }
-            .wholepage .mark-tables td {
-                text-align: center;
-            }
-            .wholepage .mark-tables td table tr .wordnumcolumn {
-                text-align: left;
-                padding-left: 2px;
-            }
-            .wholepage .mark-tables td table tr .mocolumn {
-                padding-left: 2px;
-                text-align: center;
-            }
-            .highlight {
-                font-weight: bold;
-            }
-            .underline {
-                text-decoration: underline;
-                text-decoration-color: black;
-            }
-            .bold {
-                font-weight: bold;
-            }
-            .center {
-                text-align: center;
-            }
-            .italics {
-                font-style: italic;
-            }
-            .mark-tables .mt1, .mark-tables .mt2, .mark-tables .mt3 {
-                padding: 0 2px !important;
-            }
-            .mark-table1, .mark-table2, .mark-table3 {
-                border: 1px solid black;
-                border-collapse: collapse;
-                width: 95% !important;
-                table-layout: fixed !important;
-                margin: auto;
-            }
-            .rows td {
-                padding: 1px !important;
-                font-size: 16px !important;
-            }
-            #campus-overlay {
-                position: absolute;
-                top: 0.3cm;
-                left: 12.5cm;
-                z-index: 9999;
-                border: 1px solid;
-                padding: 1px;
-                text-align: center;
-                font-size: 14px;
-            }
-            .after-marks {
-                height: 1cm !important; /* Fixed height - adjust as needed */
-                min-height: 2cm !important;
-                max-height: 2cm !important;
-                overflow: hidden !important;
-                padding: 0 !important;
-                margin: 0 !important;
-            }
-            
-            .after-marks td {
-                height: 2cm !important;
-                padding: 2px !important;
-                margin: 0 !important;
-                overflow: hidden !important;
-            }
-            
-            /* Squeeze content to fit */
-            .after-marks .col1,
-            .after-marks .col23 {
-                font-size: 10px !important; /* Reduce font size */
-                line-height: 1.1 !important;
-            }
-            
-            /* Make text elements shrink */
-            .after-marks div {
-                margin: 1px 0 !important;
-                padding: 0 !important;
-                line-height: 1.1 !important;
-            }
-            
-            /* Adjust specific elements */
-            .after-marks .times {
-                font-size: 11px !important;
-            }
-            
-            .after-marks .underline {
-                display: inline-block;
-                margin-bottom: 0 !important;
-            }
-            
-            /* Reduce spacing */
-            .after-marks div[style*="height:"] {
-                height: 0.1cm !important;
-            }
-            
-            /* Shrink note text */
-            .after-marks div[style*="font-size: 8pt"] {
-                font-size: 6pt !important !important;
-                margin-left: 0.3cm !important;
-                line-height: 1 !important;
-            }
-            .mark-table-section {
-                height: ${tableHeightCm}cm !important;
-                max-height: ${tableHeightCm}cm !important;
-                overflow: hidden !important;
-            }
-            .header-section {
-                height: 4cm !important; /* Adjust this value as needed */
-                max-height: 4cm !important;
-                min-height: 4cm !important;
-                overflow: hidden !important;
-            }
-            
-            .header-section tr {
-                height: calc(4cm / 9) !important; /* 9 rows total in header */
-                max-height: calc(4cm / 9) !important;
-                min-height: calc(4cm / 9) !important;
-            }
-            
-            .header-section td {
-                vertical-align: middle !important;
-                padding: 1px 2px !important;
-            }
-            
-            .header-section .mini {
-                font-size: 11px !important;
-            }
-            
-            .header-section div {
-                line-height: 1.1 !important;
-                margin: 0 !important;
-                padding: 0 !important;
-            }
-            
-            /* Make text fit better */
-            .header-section .center.bold.times {
-                font-size: 14px !important;
-            }
-            
-            .header-section .underline {
-                margin-bottom: 0 !important;
-            }
-            
-            /* Compact spacing for all header rows */
-            .header-section tr:first-child td {
-                padding-bottom: 0 !important;
-            }
-            
-            /* Footer section (you already have this) */
-            .after-marks {
-                height: 3cm !important;
-                max-height: 3cm !important;
-                overflow: hidden !important;
-            }
-            
-            @media print {
-                .header-section {
-                    height: 4cm !important;
-                }
-                
-                .header-section tr {
-                    height: calc(4cm / 9) !important;
-                }
-                #campus-overlay {
-                    left: 60% !important; /* Adjust percentage as needed */
-                    transform: translateX(-50%) !important; /* Center it */
-                }
-            }
-            @media print {
-                .after-marks {
-                    height: 3cm !important;
-                }
-                
-                .after-marks td {
-                    height: 3cm !important;
-                }
-            }
-            /* Print-specific adjustments */
-            @media print {
-                .preview-panel {
-                    display: block !important;
-                }
-                .page-content {
-                    width: 100% !important;
-                    margin: 0.5cm 0.5cm 0.5cm 0.5cm !important;
-                    transform: none !important;
-                }
-                
-                .wholepage {
-                    width: 98% !important;
-                    table-layout: fixed !important;
-                }
-                
-                .mark-table1, .mark-table2, .mark-table3 {
-                    table-layout: fixed !important;
-                }
-                
-                .rows {
-                    height: ${rowHeightCm}cm !important;
-                }
-                
-                .codecolumn, .mocolumn, .wordnumcolumn {
-                    overflow: hidden !important;
-                    text-overflow: ellipsis !important;
-                }
-            }
-        </style>
-    `;
+          <style>
+              @page {
+                  size: A4;
+                  margin: 0.3cm 0.3cm !important;
+              }
+              body {
+                  font-family: Arial, sans-serif;
+                  font-size: 14px;
+                  margin: 0 !important;
+                  padding: 0 !important;
+              }
+              .times {
+                  font-family: "Times New Roman", Times, serif;
+              }
+              .wholepage {
+                  width: 100% !important;
+                  border-collapse: collapse;
+                  table-layout: fixed !important;
+              }
+              .wholepage .mini {
+                  font-size: 12px !important;
+              }
+              .wholepage tr td table tr td,
+              .wholepage tr td table tr th {
+                  border: 1px solid black;
+                  padding: 1px !important;
+                  overflow: hidden !important;
+                  text-overflow: ellipsis !important;
+                  white-space: nowrap !important;
+              }
+              .wholepage .mark-tables td {
+                  text-align: center;
+              }
+              .wholepage .mark-tables td table tr .wordnumcolumn {
+                  text-align: left;
+                  padding-left: 2px;
+              }
+              .wholepage .mark-tables td table tr .mocolumn {
+                  padding-left: 2px;
+                  text-align: center;
+              }
+              .highlight {
+                  font-weight: bold;
+              }
+              .underline {
+                  text-decoration: underline;
+                  text-decoration-color: black;
+              }
+              .bold {
+                  font-weight: bold;
+              }
+              .center {
+                  text-align: center;
+              }
+              .italics {
+                  font-style: italic;
+              }
+              .mark-tables .mt1, .mark-tables .mt2, .mark-tables .mt3 {
+                  padding: 0 2px !important;
+              }
+              .mark-table1, .mark-table2, .mark-table3 {
+                  border: 1px solid black;
+                  border-collapse: collapse;
+                  width: 95% !important;
+                  table-layout: fixed !important;
+                  margin: auto;
+              }
+              .rows td {
+                  padding: 1px !important;
+                  font-size: 16px !important;
+              }
+              #campus-overlay {
+                  position: absolute;
+                  top: 0.3cm;
+                  left: 12.5cm;
+                  z-index: 9999;
+                  border: 1px solid;
+                  padding: 1px;
+                  text-align: center;
+                  font-size: 14px;
+              }
+              .after-marks {
+                  height: 1cm !important; /* Fixed height - adjust as needed */
+                  min-height: 2cm !important;
+                  max-height: 2cm !important;
+                  overflow: hidden !important;
+                  padding: 0 !important;
+                  margin: 0 !important;
+              }
+
+              .after-marks td {
+                  height: 2cm !important;
+                  padding: 2px !important;
+                  margin: 0 !important;
+                  overflow: hidden !important;
+              }
+
+              /* Squeeze content to fit */
+              .after-marks .col1,
+              .after-marks .col23 {
+                  font-size: 10px !important; /* Reduce font size */
+                  line-height: 1.1 !important;
+              }
+
+              /* Make text elements shrink */
+              .after-marks div {
+                  margin: 1px 0 !important;
+                  padding: 0 !important;
+                  line-height: 1.1 !important;
+              }
+
+              /* Adjust specific elements */
+              .after-marks .times {
+                  font-size: 11px !important;
+              }
+
+              .after-marks .underline {
+                  display: inline-block;
+                  margin-bottom: 0 !important;
+              }
+
+              /* Reduce spacing */
+              .after-marks div[style*="height:"] {
+                  height: 0.1cm !important;
+              }
+
+              /* Shrink note text */
+              .after-marks div[style*="font-size: 8pt"] {
+                  font-size: 6pt !important !important;
+                  margin-left: 0.3cm !important;
+                  line-height: 1 !important;
+              }
+              .mark-table-section {
+                  height: ${tableHeightCm}cm !important;
+                  max-height: ${tableHeightCm}cm !important;
+                  overflow: hidden !important;
+              }
+              .header-section {
+                  height: 4cm !important; /* Adjust this value as needed */
+                  max-height: 4cm !important;
+                  min-height: 4cm !important;
+                  overflow: hidden !important;
+              }
+
+              .header-section tr {
+                  height: calc(4cm / 9) !important; /* 9 rows total in header */
+                  max-height: calc(4cm / 9) !important;
+                  min-height: calc(4cm / 9) !important;
+              }
+
+              .header-section td {
+                  vertical-align: middle !important;
+                  padding: 1px 2px !important;
+              }
+
+              .header-section .mini {
+                  font-size: 11px !important;
+              }
+
+              .header-section div {
+                  line-height: 1.1 !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+              }
+
+              /* Make text fit better */
+              .header-section .center.bold.times {
+                  font-size: 14px !important;
+              }
+
+              .header-section .underline {
+                  margin-bottom: 0 !important;
+              }
+
+              /* Compact spacing for all header rows */
+              .header-section tr:first-child td {
+                  padding-bottom: 0 !important;
+              }
+
+              /* Footer section (you already have this) */
+              .after-marks {
+                  height: 3cm !important;
+                  max-height: 3cm !important;
+                  overflow: hidden !important;
+              }
+
+              @media print {
+                  .header-section {
+                      height: 4cm !important;
+                  }
+
+                  .header-section tr {
+                      height: calc(4cm / 9) !important;
+                  }
+                  #campus-overlay {
+                      left: 60% !important; /* Adjust percentage as needed */
+                      transform: translateX(-50%) !important; /* Center it */
+                  }
+              }
+              @media print {
+                  .after-marks {
+                      height: 3cm !important;
+                  }
+
+                  .after-marks td {
+                      height: 3cm !important;
+                  }
+              }
+              /* Print-specific adjustments */
+              @media print {
+                  .preview-panel {
+                      display: block !important;
+                  }
+                  .page-content {
+                      width: 100% !important;
+                      margin: 0.5cm 0.5cm 0.5cm 0.5cm !important;
+                      transform: none !important;
+                  }
+
+                  .wholepage {
+                      width: 98% !important;
+                      table-layout: fixed !important;
+                  }
+
+                  .mark-table1, .mark-table2, .mark-table3 {
+                      table-layout: fixed !important;
+                  }
+
+                  .rows {
+                      height: ${rowHeightCm}cm !important;
+                  }
+
+                  .codecolumn, .mocolumn, .wordnumcolumn {
+                      overflow: hidden !important;
+                      text-overflow: ellipsis !important;
+                  }
+              }
+          </style>
+      `;
 
         document.getElementById("preview-content").innerHTML =
           css + previewHTML;
@@ -1869,6 +1936,7 @@ Example:
             // Update state
             if (data.passed !== undefined) state.passed = data.passed;
             if (data.failed !== undefined) state.failed = data.failed;
+            if (data.absent !== undefined) state.absent = data.absent;
             if (data.total !== undefined) state.total = data.total;
             if (data.currentCodeNumber !== undefined)
               state.currentCodeNumber = data.currentCodeNumber;
