@@ -432,10 +432,11 @@
             <div class="stat-value" id="failed-count">0</div>
             <div class="stat-label">Failed</div>
           </div>
+          ${data.exam_type === "Practical" ? `
           <div class="stat-item">
             <div class="stat-value" id="absent-count">0</div>
             <div class="stat-label">Absent</div>
-          </div>
+          </div>`: ""}
           <div class="stat-item">
             <div class="stat-value" id="total-count">0</div>
             <div class="stat-label">Total</div>
@@ -1611,7 +1612,7 @@ Example:
                       <td class="mt1" style="width: 25%; padding: 0 2px;">
                           <table class="mark-table1" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
                               <tr>
-                                  <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 45%;">Code #</th>
+                                  <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 45%;">${data.exam_type === "Practical" ? `Roll no` : "Code #"}</th>
                                   <th class="times huge mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 55%;">Marks</th>
                               </tr>
                               ${leftRows}
@@ -1620,7 +1621,7 @@ Example:
                       <td class="mt2" style="width: 37.5%; padding: 0 5px;">
                           <table class="mark-table2" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
                               <tr>
-                                  <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Code #</th>
+                                  <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">${data.exam_type === "Practical" ? `Roll no` : "Code #"}</th>
                                   <th class="times mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Marks</th>
                                   <th class="times huge wordnumcolumn" style="padding: 2px; text-align: left; border: 1px solid black; font-size: 16px; width: 60%;">Marks in Words</th>
                               </tr>
@@ -1630,7 +1631,7 @@ Example:
                       <td class="mt3" style="width: 37.5%; padding: 0 5px;">
                           <table class="mark-table3" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
                               <tr>
-                                  <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Code #</th>
+                                  <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">${data.exam_type === "Practical" ? `Roll no` : "Code #"}</th>
                                   <th class="times mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Marks</th>
                                   <th class="times huge wordnumcolumn" style="padding: 2px; text-align: left; border: 1px solid black; font-size: 16px; width: 60%;">Marks in Words</th>
                               </tr>
