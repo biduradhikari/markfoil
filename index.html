@@ -432,7 +432,7 @@
             <div class="stat-value" id="failed-count">0</div>
             <div class="stat-label">Failed</div>
           </div>
-          ${data.exam_type === "Practical" ? `<div class="stat-item"><div class="stat-value" id="absent-count">0</div><div class="stat-label">Absent</div></div>`: ""}
+          ${data.exam_type === "Practical" ? `<div class="stat-item"><div class="stat-value" id="absent-count">0</div><div class="stat-label">Absent</div></div>` : ""}
           <div class="stat-item">
             <div class="stat-value" id="total-count">0</div>
             <div class="stat-label">Total</div>
@@ -1367,7 +1367,7 @@ Example:
         // Use user-adjustable table height
         const tableHeightCm = parseFloat(data.table_height_cm) || 19;
         const rowHeightCm = (tableHeightCm / rowsPerPage).toFixed(3); // set row height based on rows per page, to fit a4
-        const examTypeShort = data.exam_type === "Theory" ? "Th." : "Pr.";
+        const examTypeShort = data.exam_type === "Theory" ? "Th." : "Clinical/Oral";
 
         const examinerSignatureText = data.exam_type === "Practical" ? "s" : "";
         const examinerSignatureText2 =
