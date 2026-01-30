@@ -347,25 +347,19 @@
               placeholder="Subject (e.g. IBMS-IV Group A Anatomy)"
             />
           </div>
-          <div class="form-group">
-            <!-- <label for="paper">Paper:</label> -->
-            <input type="text" id="paper" placeholder="Paper (e.g. IV)" />
-          </div>
         </div>
 
         <!-- Form Row 4 -->
         <div class="form-row">
+          
+          <div class="form-group">
+            <!-- <label for="paper">Paper:</label> -->
+            <input type="text" id="paper" placeholder="Paper (e.g. IV)" />
+          </div>
           <div class="form-group">
             <!-- <label for="full_marks">Full Marks:</label> -->
             <input type="number" id="full_marks" placeholder="Full Marks" />
             <div class="error-message" id="full_marks_error"></div>
-          </div>
-          <div class="form-group">
-            <!-- <label for="exam_type">Type of Exam:</label> -->
-            <select id="exam_type">
-              <option value="Theory">Theory</option>
-              <option value="Practical">Practical</option>
-            </select>
           </div>
         </div>
 
@@ -383,6 +377,16 @@
               placeholder="Campus short name (e.g. IOM)"
             />
           </div>
+          
+          <div class="form-group">
+            <!-- <label for="exam_type">Type of Exam:</label> -->
+            <select id="exam_type">
+              <option value="Theory">Theory</option>
+              <option value="Practical">Practical</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
           <div class="form-group">
             <label for="num_of_rows" style="display: inline-block; width: 120px"
               >Rows per page:</label
@@ -396,8 +400,8 @@
               style="display: inline-block; width: calc(100% - 130px)"
             />
           </div>
-        </div>
-        <div class="form-group">
+          
+          <div class="form-group">
           <label for="table_height_cm">Table Height:</label>
           <input
             type="number"
@@ -412,6 +416,7 @@
             Adjust if page doesn't fill or overflows into another page in print
             preview
           </small>
+          </div>
         </div>
         <!-- Word Number Type -->
         <div class="form-group">
