@@ -432,7 +432,10 @@
             <div class="stat-value" id="failed-count">0</div>
             <div class="stat-label">Failed</div>
           </div>
-          ${data.exam_type === "Practical" ? `<div class="stat-item"><div class="stat-value" id="absent-count">0</div><div class="stat-label">Absent</div></div>` : ""}
+          <div class="stat-item" id="absent-stat-item" style="display: none;">
+            <div class="stat-value" id="absent-count">0</div>
+            <div class="stat-label">Absent</div>
+          </div>
           <div class="stat-item">
             <div class="stat-value" id="total-count">0</div>
             <div class="stat-label">Total</div>
@@ -605,6 +608,10 @@ Example:
         document.getElementById("absent-count").style.display = isTheory
           ? "none"
           : "block";
+        const absentStat = document.getElementById("absent-stat-item");
+        if (absentStat) {
+            absentStat.style.display = isTheory ? "none" : "block";
+        }
       }
       // Event Listeners
       function setupEventListeners() {
