@@ -608,10 +608,6 @@ Example:
         document.getElementById("absent-count").style.display = isTheory
           ? "none"
           : "block";
-        const absentStat = document.getElementById("absent-stat-item");
-        if (absentStat) {
-            absentStat.style.display = isTheory ? "none" : "block";
-        }
       }
       // Event Listeners
       function setupEventListeners() {
@@ -1110,6 +1106,9 @@ Example:
         document.getElementById("campus-group").style.display = isTheory
           ? "none"
           : "block";
+        document.getElementById("absent-stat-item").style.display = isTheory
+          ? "none"
+          : "block";
       }
 
       // Update stats display
@@ -1375,6 +1374,7 @@ Example:
         const tableHeightCm = parseFloat(data.table_height_cm) || 19;
         const rowHeightCm = (tableHeightCm / rowsPerPage).toFixed(3); // set row height based on rows per page, to fit a4
         const examTypeShort = data.exam_type === "Theory" ? "Th." : "Clinical/Oral";
+        const codenoText = data.exam_type === "Theory" ? "Code #" : "Roll no";
 
         const examinerSignatureText = data.exam_type === "Practical" ? "s" : "";
         const examinerSignatureText2 =
