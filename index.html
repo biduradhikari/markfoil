@@ -351,7 +351,6 @@
 
         <!-- Form Row 4 -->
         <div class="form-row">
-          
           <div class="form-group">
             <!-- <label for="paper">Paper:</label> -->
             <input type="text" id="paper" placeholder="Paper (e.g. IV)" />
@@ -377,7 +376,7 @@
               placeholder="Campus short name (e.g. IOM)"
             />
           </div>
-          
+
           <div class="form-group">
             <!-- <label for="exam_type">Type of Exam:</label> -->
             <select id="exam_type">
@@ -385,46 +384,6 @@
               <option value="Practical">Practical</option>
             </select>
           </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="num_of_rows" style="display: inline-block; width: 120px"
-              >Rows per page:</label
-            >
-            <input
-              type="number"
-              id="num_of_rows"
-              value="30"
-              min="1"
-              max="50"
-              style="display: inline-block; width: calc(100% - 130px)"
-            />
-          </div>
-          
-          <div class="form-group">
-          <label for="table_height_cm">Table Height:</label>
-          <input
-            type="number"
-            id="table_height_cm"
-            value="19"
-            min="10"
-            max="25"
-            step="0.1"
-            style="width: 100%"
-          />
-          <small style="color: #666; font-size: 12px">
-            Adjust if page doesn't fill or overflows into another page in print
-            preview
-          </small>
-          </div>
-        </div>
-        <!-- Word Number Type -->
-        <div class="form-group">
-          <label for="checkmark">Word Number Type:</label>
-          <select id="checkmark">
-            <option value="word">17 = Seventeen</option>
-            <option value="digit">17 = One seven</option>
-          </select>
         </div>
 
         <!-- Stats Display -->
@@ -437,7 +396,7 @@
             <div class="stat-value" id="failed-count">0</div>
             <div class="stat-label">Failed</div>
           </div>
-          <div class="stat-item" id="absent-stat-item" style="display: none;">
+          <div class="stat-item" id="absent-stat-item" style="display: none">
             <div class="stat-value" id="absent-count">0</div>
             <div class="stat-label">Absent</div>
           </div>
@@ -452,11 +411,11 @@
           <label for="marks_data">Enter Marks:</label>
           <textarea
             id="marks_data"
-            placeholder="Code number &lt;SPACE &gt; Mark
-Example:
-1 85
-2 92
-3 78.5"
+            placeholder="Code number &lt;SPACE&gt; Mark
+              Example:
+              1 85
+              2 92
+              3 78.5"
           ></textarea>
           <div class="error-message" id="marks_error"></div>
         </div>
@@ -468,7 +427,86 @@ Example:
             <li>Each line: Code number followed by space and mark</li>
             <li>Press Enter after each entry</li>
             <li>Press backspace to edit code number if needed</li>
+            <li>Edit settings below if and as needed</li>
           </ul>
+        </div>
+
+        <div
+          id="advancedSettingsLabel"
+          style="
+            cursor: pointer;
+            font-weight: 600;
+            margin-bottom: 6px;
+            user-select: none;
+          "
+        >
+          ▶ Other Settings
+        </div>
+
+        <div id="advancedSettings" style="display: none">
+          <div class="form-row">
+            <div class="form-group">
+              <label
+                for="num_of_rows"
+                style="display: inline-block; width: 120px"
+              >
+                Rows per page:
+              </label>
+              <input
+                type="number"
+                id="num_of_rows"
+                value="30"
+                min="1"
+                max="50"
+                style="display: inline-block; width: calc(100% - 130px)"
+              />
+              <small style="color: #666; font-size: 12px">
+                Number of Codes/ roll no per page
+              </small>
+            </div>
+
+            <div class="form-group">
+              <label
+                for="table_height_cm"
+                style="display: inline-block; width: 120px"
+              >
+                Table height:
+              </label>
+              <input
+                type="number"
+                id="table_height_cm"
+                value="19"
+                style="display: inline-block; width: calc(100% - 130px)"
+              />
+              <small style="color: #666; font-size: 12px">
+                Adjust for page overflow in print
+              </small>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <select id="checkmark">
+                <option value="auto">Auto wordnum style</option>
+                <option value="word">17 = Seventeen</option>
+                <option value="digit">17 = One seven</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label
+                for="mini_font_size"
+                style="display: inline-block; width: 120px"
+              >
+                Font size (header/ footer):
+              </label>
+              <input
+                type="number"
+                id="mini_font_size"
+                value="12"
+                style="display: inline-block; width: calc(100% - 130px)"
+              />
+            </div>
+          </div>
         </div>
 
         <!-- Buttons -->
@@ -519,8 +557,9 @@ Example:
           name: "",
           campus: "",
           num_of_rows: "30",
-          checkmark: "word",
+          checkmark: "auto",
           marks_data: "",
+          mini_font_size: "12",
           table_height_cm: "19",
         },
       };
@@ -540,6 +579,7 @@ Example:
         num_of_rows: document.getElementById("num_of_rows"),
         checkmark: document.getElementById("checkmark"),
         marks_data: document.getElementById("marks_data"),
+        mini_font_size_field: document.getElementById("mini_font_size"),
         table_height_cm: document.getElementById("table_height_cm"),
       };
 
@@ -631,6 +671,13 @@ Example:
           updatePreview();
         });
 
+        formElements.mini_font_size_field.addEventListener(
+          "input",
+          function () {
+            state.data.mini_font_size = this.value;
+            updatePreview();
+          },
+        );
         // Exam type change
         formElements.exam_type.addEventListener("change", function () {
           state.data.exam_type = this.value;
@@ -707,6 +754,7 @@ Example:
         const parts = currentLine.trim().split(/[\t ]+/);
 
         if (parts.length >= 2) {
+          console.log("Valid entry detected on Enter key");
           e.preventDefault(); // Only prevent default if we have valid data
 
           const code = parts[0];
@@ -801,7 +849,6 @@ Example:
         }, 10);
       }
 
-      // NEW: Smart auto-formatting function that ONLY formats when mark exceeds full marks
       function handleMarkAutoFormatting(e) {
         // Only process if it's a number key, decimal point, or backspace
         if (
@@ -950,6 +997,7 @@ Example:
           }
         }, 10);
       }
+
       function undoLastAutoFormat() {
         if (!lastAutoFormat) {
           showToast("Nothing to undo", 2000);
@@ -966,6 +1014,7 @@ Example:
         const parts = currentLine.trim().split(/[\t ]+/);
 
         if (parts.length >= 2 && parts[1] === lastAutoFormat.formattedMark) {
+          //to do check
           const code = parts[0];
           const delimiter = currentLine.match(/[\t ]+/)?.[0] || " ";
           lines[lastAutoFormat.lineIndex] =
@@ -997,7 +1046,6 @@ Example:
         updateUndoButton();
       }
 
-      // UPDATED: Toast notification with longer duration
       function showToast(message, duration = 5000) {
         const toast = document.getElementById("toast");
         toast.textContent = message;
@@ -1070,10 +1118,15 @@ Example:
             state.data[key] = formElements[key].value;
             return; // skip the rest
           }
+          if (key === "mini_font_size") {
+            // Leave it as is
+            state.data[key] = formElements[key].value;
+            return; // skip the rest
+          }
           if (key === "exam_type") {
             formElements[key].value = "Theory";
           } else if (key === "checkmark") {
-            formElements[key].value = "word";
+            formElements[key].value = "auto";
           } else if (key === "num_of_rows") {
             formElements[key].value = "30";
           } else {
@@ -1364,7 +1417,14 @@ Example:
         if (decimalPart > 0) word += "& half";
         return word.trim();
       }
+      const label = document.getElementById("advancedSettingsLabel");
+      const panel = document.getElementById("advancedSettings");
 
+      label.addEventListener("click", () => {
+        const isOpen = panel.style.display === "block";
+        panel.style.display = isOpen ? "none" : "block";
+        label.textContent = isOpen ? "▶ Other settings" : "▼ Other settings";
+      });
       // Update preview
       function updatePreview() {
         if (!validateInputs() || !validateMarksData()) return;
@@ -1377,8 +1437,10 @@ Example:
 
         // Use user-adjustable table height
         const tableHeightCm = parseFloat(data.table_height_cm) || 19;
+        const miniFontSize = parseFloat(data.mini_font_size) || 12;
         const rowHeightCm = (tableHeightCm / rowsPerPage).toFixed(3); // set row height based on rows per page, to fit a4
-        const examTypeShort = data.exam_type === "Theory" ? "Th." : "Clinical/Oral";
+        const examTypeShort =
+          data.exam_type === "Theory" ? "Th." : "Clinical/Oral";
         const codenoText = data.exam_type === "Theory" ? "Code #" : "Roll no";
 
         const examinerSignatureText = data.exam_type === "Practical" ? "s" : "";
@@ -1391,12 +1453,12 @@ Example:
         let examinerNameOrSignature = "";
         if (data.exam_type === "Theory") {
           examinerNameOrSignature = `
-          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 16px;">${data.name || "Examiner Name"}</span></div>
+          <div style="height: 30px !important">&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 16px;">${data.name || "Examiner Name"}</span></div>
           <div class="times" style="border-top: 1px solid black;padding-top: 2px;">&nbsp;&nbsp;&nbsp;&nbsp;<span>Full <span class="bold">NAME</span> of Examiner</span></div>
       `;
         } else {
           examinerNameOrSignature = `
-          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 16px;">&nbsp;</span></div>
+          <div style="height: 30px !important"></div>
           <div class="times" style="border-top: 1px solid black;padding-top: 2px;">&nbsp;&nbsp;&nbsp;&nbsp;<span>Full Signature of Examiners</span></div>
       `;
         }
@@ -1434,8 +1496,17 @@ Example:
 
             let wordNumber = "";
             if (isNumber) {
-              wordNumber =
-                checkmarkType === "word" ? wordnum(markNum) : digitnum(markNum);
+              if (checkmarkType === "word") {
+                wordNumber = wordnum(markNum);
+              } else if (checkmarkType === "digit") {
+                wordNumber = digitnum(markNum);
+              } else {
+                if (fullMarks > 100) {
+                  wordNumber = digitnum(markNum);
+                } else {
+                  wordNumber = wordnum(markNum);
+                }
+              }
 
               // Count based on exam type
               if (data.exam_type === "Practical") {
@@ -1651,7 +1722,7 @@ Example:
                   <tr class="after-marks mini">
                       <td class="col1" style="vertical-align: top;">
                           <div class="times">Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span>${data.exam_type === "Practical" ? `&nbsp;&nbsp;Absent: <span class="underline">${pageAbsent}</span>` : ""}</div>
-                          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 16px;">&nbsp;</span></div>
+                          <div style="height: 30px !important"></div>
                           <div class="times" style="border-top: 1px solid black;">Full Signature of Examiner${examinerSignatureText}</div>
                           <div class="underline">Note:</div>
                           <div style="margin-left:20px; font-size: 8pt;">a) All corrections must be initialed. This counter-foil must be preserved by the Examiner as the case may be for six months.</div>
@@ -1659,17 +1730,17 @@ Example:
                       <td class="col23" style="vertical-align: top;">
                           <div class="times center" >&nbsp;&nbsp;&nbsp;&nbsp;Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span>${data.exam_type === "Practical" ? `&nbsp;&nbsp;Absent: <span class="underline">${pageAbsent}</span>` : ""}</div>
                           ${examinerNameOrSignature}
-                          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
-                          <div>&nbsp;&nbsp;&nbsp;&nbsp;Full Signature of Scrutiny Board, if any</div>
+                          <div style="height: 30px !important"></div>
+                          <div style="border-top: 1px solid black;">&nbsp;&nbsp;&nbsp;&nbsp;Full Signature of Scrutiny Board, if any</div>
                           <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">Note:</span></div>
                           <div style="margin-left:0.5cm; font-size: 8pt;">The Scrutiny Board shall Scrutinize and verify the marks submitted by the examiner before forwarding the same to the Examination Division.</div>
                       </td>
                       <td class="col23" style="vertical-align: top;">
                           <div class="times center">&nbsp;&nbsp;&nbsp;&nbsp;Passed: <span class="underline">${pagePassed}</span>&nbsp;&nbsp;&nbsp;&nbsp;Failed: <span class="underline">${pageFailed}</span>${data.exam_type === "Practical" ? `&nbsp;&nbsp;Absent: <span class="underline">${pageAbsent}</span>` : ""}</div>
-                          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 16px;">&nbsp;</span></div>
+                          <div style="height: 30px !important"></div>
                           <div class="times" style="border-top: 1px solid black;">&nbsp;&nbsp;&nbsp;&nbsp;Full ${examinerSignatureText2}</div>
-                          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
-                          <div>Full Signature of Scrutiny Board, if any</div>
+                          <div style="height: 30px !important"></div>
+                          <div style="border-top: 1px solid black;">Full Signature of Scrutiny Board, if any</div>
                           <div><span class="underline">Note:</span></div>
                           <div style="margin-left:0.5cm; font-size: 8pt;">The Scrutiny Board shall Scrutinize and verify the marks submitted by the examiner before forwarding the same to the Examination Division.</div>
                       </td>
@@ -1704,7 +1775,7 @@ Example:
                   table-layout: fixed !important;
               }
               .wholepage .mini {
-                  font-size: 12px !important;
+                  font-size: ${miniFontSize}px !important;
               }
               .wholepage tr td table tr td,
               .wholepage tr td table tr th {
@@ -1781,23 +1852,11 @@ Example:
                   overflow: hidden !important;
               }
 
-              /* Squeeze content to fit */
-              .after-marks .col1,
-              .after-marks .col23 {
-                  font-size: 10px !important; /* Reduce font size */
-                  line-height: 1.1 !important;
-              }
-
               /* Make text elements shrink */
               .after-marks div {
                   margin: 1px 0 !important;
                   padding: 0 !important;
                   line-height: 1.1 !important;
-              }
-
-              /* Adjust specific elements */
-              .after-marks .times {
-                  font-size: 11px !important;
               }
 
               .after-marks .underline {
@@ -1837,10 +1896,6 @@ Example:
               .header-section td {
                   vertical-align: middle !important;
                   padding: 1px 2px !important;
-              }
-
-              .header-section .mini {
-                  font-size: 11px !important;
               }
 
               .header-section div {
