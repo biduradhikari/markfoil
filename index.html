@@ -793,7 +793,13 @@
           state.data.marks_data = textarea.value;
           validateMarksData();
           updatePreview();
-
+          // Scroll preview panel to bottom
+          const previewPanel = document.querySelector('.preview-panel');
+          if (previewPanel) {
+            setTimeout(() => {
+              previewPanel.scrollTop = previewPanel.scrollHeight;
+            }, 100);
+          }
           // Set cursor position and scroll to it
           setTimeout(() => {
             const newCursorPos = getPositionAfterNewLine(
