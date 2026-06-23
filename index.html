@@ -1977,9 +1977,20 @@
                       height: ${rowHeightCm}cm !important;
                   }
 
-                  .codecolumn, .mocolumn, .wordnumcolumn {
+                  .mocolumn, .wordnumcolumn {
                       overflow: hidden !important;
                       text-overflow: ellipsis !important;
+                  }
+                  .codecolumn {
+                      overflow: visible !important;
+                      text-overflow: clip !important;
+                      white-space: normal !important;
+                  }
+                  .wholepage tr td table tr td.codecolumn,
+                  .wholepage tr td table tr th.codecolumn {
+                      overflow: visible !important;
+                      text-overflow: clip !important;
+                      white-space: normal !important;
                   }
               }
           </style>
