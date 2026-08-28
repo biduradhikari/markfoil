@@ -740,7 +740,30 @@
         }
         return position;
       }
+      function getTextareaLineHeight(textarea) {
+        const computed = getComputedStyle(textarea);
 
+        if (computed.lineHeight !== "normal") {
+          return parseFloat(computed.lineHeight);
+        }
+
+        // Measure actual rendered line height
+        const probe = document.createElement("div");
+        probe.style.position = "absolute";
+        probe.style.visibility = "hidden";
+        probe.style.whiteSpace = "pre";
+        probe.style.font = computed.font;
+
+        probe.textContent = "A\nA";
+
+        document.body.appendChild(probe);
+
+        const lineHeight = probe.offsetHeight / 2;
+
+        document.body.removeChild(probe);
+
+        return lineHeight;
+      }
       function handleEnterKey(e) {
         if (e.key !== "Enter") {
           // Handle auto-formatting for non-Enter keys
@@ -809,30 +832,12 @@
             );
             textarea.setSelectionRange(newCursorPos, newCursorPos);
             textarea.focus();
-
-            // Scroll to cursor position
-            scrollToCursor(textarea);
+            // Always re-center the new line ourselves - the browser's
+            // default focus-triggered scroll tends to snap the caret to
+            // the top edge of the textarea instead of keeping it in view
+            // comfortably, so we can't rely on it running conditionally.
+            scrollToCursor(textarea, currentLineIndex + 1);
           }, 10);
-
-          // Check if formatted mark is valid and auto-enter
-          const formattedMarkNum = parseFloat(formattedMark);
-          if (!isNaN(formattedMarkNum) && formattedMarkNum <= fullMarks) {
-            // Auto-Enter after short delay
-            setTimeout(() => {
-              // Create a custom event to distinguish auto-enter from manual Enter
-              const enterEvent = new KeyboardEvent("keydown", {
-                key: "Enter",
-                code: "Enter",
-                keyCode: 13,
-                which: 13,
-                bubbles: true,
-                cancelable: true,
-              });
-              // Add a custom property to identify auto-triggered Enter
-              enterEvent.autoTriggered = true;
-              textarea.dispatchEvent(enterEvent);
-            }, 500);
-          }
         } else {
           // Empty or inconsistent entry - show error and prevent new line
           e.preventDefault();
@@ -843,17 +848,30 @@
         }
       }
 
-      function scrollToCursor(textarea) {
-        // Simple scroll to make cursor visible
-        const cursorPos = textarea.selectionStart;
-        const textBeforeCursor = textarea.value.substring(0, cursorPos);
-        const linesBefore = textBeforeCursor.split("\n").length;
-        const lineHeight = 20; // Approximate line height
-        const targetScrollTop = Math.max(0, (linesBefore - 3) * lineHeight);
+      function scrollToCursor(textarea, currentLineIndex) {
+        const lineHeight = getTextareaLineHeight(textarea);
+        const lineTop = currentLineIndex * lineHeight;
+        const lineBottom = lineTop + lineHeight;
 
-        setTimeout(() => {
-          textarea.scrollTop = targetScrollTop;
-        }, 10);
+        const viewTop = textarea.scrollTop;
+        const viewBottom = viewTop + textarea.clientHeight;
+
+        // Only step in when the line is close to (or already past) the
+        // edge of what's visible - don't fight the user by re-centering
+        // on every single line, since that scroll jump is itself the
+        // annoying/aggressive behavior.
+        const edgeBuffer = textarea.clientHeight * 0.15;
+        const aboutToHideAtTop = lineTop < viewTop + edgeBuffer;
+        const aboutToHideAtBottom = lineBottom > viewBottom - edgeBuffer;
+
+        if (!aboutToHideAtTop && !aboutToHideAtBottom) {
+          return; // already comfortably in view - leave the scroll alone
+        }
+
+        // Bring it back to a comfortable middle position rather than
+        // snapping it right to the edge.
+        const target = lineTop + lineHeight / 2 - textarea.clientHeight / 2;
+        textarea.scrollTop = Math.max(0, target);
       }
 
       function handleMarkAutoFormatting(e) {
@@ -980,6 +998,7 @@
                   formattedMark.length;
                 textarea.setSelectionRange(newCursorPos, newCursorPos);
                 textarea.focus();
+                scrollToCursor(textarea, currentLineIndex);
 
                 validateMarksData();
                 updatePreview();
@@ -1042,6 +1061,7 @@
               lastAutoFormat.originalMark.length;
             textarea.setSelectionRange(newCursorPos, newCursorPos);
             textarea.focus();
+            scrollToCursor(textarea, lastAutoFormat.lineIndex);
             showToast("Undo successful. Continue typing...", 3000);
           }, 10);
         } else {
@@ -1433,6 +1453,56 @@
         label.textContent = isOpen ? "▶ Other settings" : "▼ Other settings";
       });
       // Update preview
+      // ---- Auto-fit text: shrink font-size so content fits its fixed-size
+      // box instead of being clipped/truncated (leaving unused whitespace). ----
+      function shrinkFontToFit(box, target, minFontSize = 4, step = 0.25) {
+        target = target || box;
+        let fontSize = parseFloat(getComputedStyle(target).fontSize) || 16;
+        let guard = 0;
+        const maxGuard = Math.ceil((fontSize - minFontSize) / step) + 5;
+        // Use setProperty(..., "important") because several stylesheet rules
+        // (e.g. ".rows td { font-size: 16px !important; }") set font-size
+        // with !important; an inline !important declaration is required to
+        // win the cascade so per-cell shrinking actually takes effect.
+        while (
+          guard < maxGuard &&
+          fontSize > minFontSize &&
+          (box.scrollWidth > box.clientWidth + 1 ||
+            box.scrollHeight > box.clientHeight + 1)
+        ) {
+          fontSize -= step;
+          target.style.setProperty("font-size", fontSize + "px", "important");
+          guard++;
+        }
+      }
+
+      function autoFitPreviewText(root) {
+        if (!root) return;
+
+        // Mark-table cells: Code #/Roll no, Marks, Marks in Words (headers + rows).
+        // NOTE: these cells live inside a nested <table> that sits inside a
+        // wrapper <td> of the outer ".mark-tables" row, so we must target the
+        // classes on the actual data cells directly rather than ".mark-tables td"
+        // (which would only match the outer wrapper, which never overflows).
+        root
+          .querySelectorAll(".codecolumn, .mocolumn, .wordnumcolumn")
+          .forEach((cell) => shrinkFontToFit(cell));
+
+        // Header info rows (Subject, Program, Level, Paper, etc.)
+        root.querySelectorAll(".header-section td").forEach((td) => {
+          const box = td.querySelector("div") || td;
+          shrinkFontToFit(box, box);
+        });
+
+        // Footer block: examiner name/signature line and note text
+        root.querySelectorAll(".after-marks td").forEach((td) => {
+          Array.from(td.children).forEach((el) => shrinkFontToFit(el, el));
+          td.querySelectorAll("span[style*='font-size']").forEach((el) =>
+            shrinkFontToFit(el, el)
+          );
+        });
+      }
+
       function updatePreview() {
         if (!validateInputs() || !validateMarksData()) return;
 
@@ -1460,7 +1530,7 @@
         let examinerNameOrSignature = "";
         if (data.exam_type === "Theory") {
           examinerNameOrSignature = `
-         <div style="height: 30px !important">&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-size: 16px;">${data.name || "Examiner Name"}</span></div>
+         <div style="height: 30px !important">&nbsp;&nbsp;&nbsp;&nbsp;<span>${data.name || "Examiner Name"}</span></div>
          <div class="times" style="border-top: 1px solid black;padding-top: 2px;">&nbsp;&nbsp;&nbsp;&nbsp;<span>Full <span class="bold">NAME</span> of Examiner</span></div>
      `;
         } else {
@@ -1469,6 +1539,94 @@
          <div class="times" style="border-top: 1px solid black;padding-top: 2px;">&nbsp;&nbsp;&nbsp;&nbsp;<span>Full Signature of Examiners</span></div>
      `;
         }
+
+        // ---- Print-safe column widths & font sizing ----
+        // Relying purely on a post-render DOM measurement (via
+        // getComputedStyle/scrollWidth during "beforeprint") is not
+        // reliably timed by every browser's print pipeline - some browsers
+        // snapshot layout for printing before/without re-applying JS
+        // mutations made in that handler, which is why long code numbers
+        // could disappear in print even though the on-screen DOM looked
+        // fine. To make print correct unconditionally, we precompute the
+        // exact print-time pixel width of each mark-table column (mirroring
+        // the @media print CSS math below) and use canvas text measurement
+        // to pick a font-size that is already guaranteed to fit *before*
+        // the HTML string is ever built. The live DOM autofit pass still
+        // runs afterward as a secondary safety net for the on-screen view.
+        const CM_TO_PX = 96 / 2.54;
+        const PAGE_WIDTH_CM = 21; // @page size: A4
+        const PAGE_MARGIN_CM = 0.3; // @page margin: 0.3cm 0.3cm
+        const CONTENT_MARGIN_CM = 0.5; // .page-content margin (print)
+        const WHOLEPAGE_WIDTH_PCT = 0.98; // .wholepage width (print)
+        const NESTED_TABLE_WIDTH_PCT = 0.95; // .mark-table1/2/3 width
+        const CELL_BORDER_SAFETY_PX = 4; // borders + rounding safety margin
+
+        const usableWidthCm =
+          PAGE_WIDTH_CM - 2 * PAGE_MARGIN_CM - 2 * CONTENT_MARGIN_CM;
+        const wholepageWidthCm = usableWidthCm * WHOLEPAGE_WIDTH_PCT;
+        const mtWidthCm = {
+          mt1: wholepageWidthCm * 0.25,
+          mt2: wholepageWidthCm * 0.375,
+          mt3: wholepageWidthCm * 0.375,
+        };
+        const colPct = {
+          table1: { code: 0.3, marks: 0.7 },
+          table2: { code: 0.2, marks: 0.2, wordnum: 0.6 },
+          table3: { code: 0.2, marks: 0.2, wordnum: 0.6 },
+        };
+        function columnWidthPx(mtKey, tableKey, colKey) {
+          const nestedWidthCm = mtWidthCm[mtKey] * NESTED_TABLE_WIDTH_PCT;
+          const colWidthCm = nestedWidthCm * colPct[tableKey][colKey];
+          return colWidthCm * CM_TO_PX - CELL_BORDER_SAFETY_PX;
+        }
+        const colWidthsPx = {
+          table1: {
+            code: columnWidthPx("mt1", "table1", "code"),
+            marks: columnWidthPx("mt1", "table1", "marks"),
+          },
+          table2: {
+            code: columnWidthPx("mt2", "table2", "code"),
+            marks: columnWidthPx("mt2", "table2", "marks"),
+            wordnum: columnWidthPx("mt2", "table2", "wordnum"),
+          },
+          table3: {
+            code: columnWidthPx("mt3", "table3", "code"),
+            marks: columnWidthPx("mt3", "table3", "marks"),
+            wordnum: columnWidthPx("mt3", "table3", "wordnum"),
+          },
+        };
+
+        const measureCtx = document.createElement("canvas").getContext("2d");
+        function fitFontSizePx(text, maxWidthPx, maxFontSize = 16, minFontSize = 4) {
+          const str = text === null || text === undefined ? "" : String(text);
+          if (!str) return maxFontSize;
+          let fontSize = maxFontSize;
+          measureCtx.font = `${fontSize}px Arial, sans-serif`;
+          while (
+            measureCtx.measureText(str).width > maxWidthPx &&
+            fontSize > minFontSize
+          ) {
+            fontSize -= 0.25;
+            measureCtx.font = `${fontSize}px Arial, sans-serif`;
+          }
+          return Math.max(fontSize, minFontSize);
+        }
+
+        const codeHeaderText = data.exam_type === "Practical" ? "Roll no" : "Code #";
+        const headerFont = {
+          table1: {
+            code: fitFontSizePx(codeHeaderText, colWidthsPx.table1.code),
+            marks: fitFontSizePx("Marks", colWidthsPx.table1.marks),
+          },
+          table23: {
+            code: fitFontSizePx(codeHeaderText, colWidthsPx.table2.code),
+            marks: fitFontSizePx("Marks", colWidthsPx.table2.marks),
+            wordnum: fitFontSizePx(
+              "Marks in Words",
+              colWidthsPx.table2.wordnum
+            ),
+          },
+        };
 
         // Generate pages
         let previewHTML = "";
@@ -1542,16 +1700,16 @@
 
             leftRows += `
              <tr class="rows ${highlightClass}" style="${rowStyle}">
-                 <td class="huge codecolumn" style="font-size: 16px; padding: 0 5px;">${code}</td>
-                 <td class="mocolumn" style="font-size: 16px; padding: 0 5px;">${mark}</td>
+                 <td class="huge codecolumn" style="font-size: ${fitFontSizePx(code, colWidthsPx.table1.code)}px !important; padding: 0 5px;">${code}</td>
+                 <td class="mocolumn" style="font-size: ${fitFontSizePx(mark, colWidthsPx.table1.marks)}px !important; padding: 0 5px;">${mark}</td>
              </tr>
          `;
 
             const rightRow = `
              <tr class="rows ${highlightClass}" style="${rowStyle}">
-                 <td class="huge codecolumn" style="font-size: 16px; padding: 0 5px;">${code}</td>
-                 <td class="mocolumn" style="font-size: 16px; padding: 0 5px; text-align: center;">${mark}</td>
-                 <td class="wordnumcolumn" style="font-size: 16px; padding: 0 5px;">${wordNumber.charAt(0).toUpperCase() + wordNumber.slice(1)}</td>
+                 <td class="huge codecolumn" style="font-size: ${fitFontSizePx(code, colWidthsPx.table2.code)}px !important; padding: 0 5px;">${code}</td>
+                 <td class="mocolumn" style="font-size: ${fitFontSizePx(mark, colWidthsPx.table2.marks)}px !important; padding: 0 5px; text-align: center;">${mark}</td>
+                 <td class="wordnumcolumn" style="font-size: ${fitFontSizePx(wordNumber, colWidthsPx.table2.wordnum)}px !important; padding: 0 5px;">${wordNumber.charAt(0).toUpperCase() + wordNumber.slice(1)}</td>
              </tr>
          `;
             rightRows1 += rightRow;
@@ -1698,28 +1856,28 @@
                      <td class="mt1" style="width: 25%; padding: 0 2px;">
                          <table class="mark-table1" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
                              <tr>
-                                 <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 45%;">${data.exam_type === "Practical" ? `Roll no` : "Code #"}</th>
-                                 <th class="times huge mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 55%;">Marks</th>
+                                 <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: ${headerFont.table1.code}px !important; width: 30%;">${data.exam_type === "Practical" ? `Roll no` : "Code #"}</th>
+                                 <th class="times huge mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: ${headerFont.table1.marks}px !important; width: 70%;">Marks</th>
                              </tr>
                              ${leftRows}
                          </table>
                      </td>
-                     <td class="mt2" style="width: 37.5%; padding: 0 5px;">
+                     <td class="mt2" style="width: 37.5%; padding: 0 2px;">
                          <table class="mark-table2" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
                              <tr>
-                                 <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">${data.exam_type === "Practical" ? `Roll no` : "Code #"}</th>
-                                 <th class="times mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Marks</th>
-                                 <th class="times huge wordnumcolumn" style="padding: 2px; text-align: left; border: 1px solid black; font-size: 16px; width: 60%;">Marks in Words</th>
+                                 <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: ${headerFont.table23.code}px !important; width: 20%;">${data.exam_type === "Practical" ? `Roll no` : "Code #"}</th>
+                                 <th class="times mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: ${headerFont.table23.marks}px !important; width: 20%;">Marks</th>
+                                 <th class="times huge wordnumcolumn" style="padding: 2px; text-align: left; border: 1px solid black; font-size: ${headerFont.table23.wordnum}px !important; width: 60%;">Marks in Words</th>
                              </tr>
                              ${rightRows1}
                          </table>
                      </td>
-                     <td class="mt3" style="width: 37.5%; padding: 0 5px;">
+                     <td class="mt3" style="width: 37.5%; padding: 0 2px;">
                          <table class="mark-table3" style="width: 100%; border-collapse: collapse; border: 1px solid black; table-layout: fixed;">
                              <tr>
-                                 <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">${data.exam_type === "Practical" ? `Roll no` : "Code #"}</th>
-                                 <th class="times mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: 16px; width: 20%;">Marks</th>
-                                 <th class="times huge wordnumcolumn" style="padding: 2px; text-align: left; border: 1px solid black; font-size: 16px; width: 60%;">Marks in Words</th>
+                                 <th class="times huge codecolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: ${headerFont.table23.code}px !important; width: 20%;">${data.exam_type === "Practical" ? `Roll no` : "Code #"}</th>
+                                 <th class="times mocolumn" style="padding: 2px; text-align: center; border: 1px solid black; font-size: ${headerFont.table23.marks}px !important; width: 20%;">Marks</th>
+                                 <th class="times huge wordnumcolumn" style="padding: 2px; text-align: left; border: 1px solid black; font-size: ${headerFont.table23.wordnum}px !important; width: 60%;">Marks in Words</th>
                              </tr>
                              ${rightRows2}
                          </table>
@@ -1787,9 +1945,9 @@
              .wholepage tr td table tr td,
              .wholepage tr td table tr th {
                  border: 1px solid black;
-                 padding: 1px !important;
+                 padding: 1px 0px !important;
                  overflow: hidden !important;
-                 text-overflow: ellipsis !important;
+                 text-overflow: clip !important;
                  white-space: nowrap !important;
              }
              .wholepage .mark-tables td {
@@ -1980,7 +2138,7 @@
 
                  .codecolumn, .mocolumn, .wordnumcolumn {
                      overflow: hidden !important;
-                     text-overflow: ellipsis !important;
+                     text-overflow: clip !important;
                  }
              }
          </style>
@@ -1988,6 +2146,14 @@
 
         document.getElementById("preview-content").innerHTML =
           css + previewHTML;
+
+        // Wait two frames so the browser has laid out the freshly-inserted
+        // markup (including the injected <style> block) before measuring it.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            autoFitPreviewText(document.getElementById("preview-content"));
+          });
+        });
       }
 
       function loadSavedData() {
@@ -2040,6 +2206,13 @@
       // show modal on page load
       window.addEventListener("load", () => {
         document.getElementById("infoModal").style.display = "flex";
+      });
+
+      // Some sizing rules only exist under @media print (e.g. .after-marks
+      // height changes from what's shown on screen). Re-fit right as the
+      // print stylesheet takes effect so printed/PDF output matches.
+      window.addEventListener("beforeprint", () => {
+        autoFitPreviewText(document.getElementById("preview-content"));
       });
     </script>
 
